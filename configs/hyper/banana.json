@@ -1,0 +1,23 @@
+{
+  "resolution": 1,
+  "model": "flow_full",
+  "scaling_lr": 0.0015,
+  "preprocesspoints": 0,
+  "test_iteration": 25000,
+  "duration": 512,
+  "rdpip": "train_ours_flow_full",
+  "rgbfunction": "sandwich",
+  "loader": "hypernerf",
+  "multiview": false,
+  "batch": 1,
+  "densify_until_iter": 15000,
+  "desicnt": -1,
+  "emsstart": 30001,
+  "reg": 14,
+  "use_weight_decay": true,
+  "densify_from_iter" :500,
+  "max_points_num": 600000,
+  "color_order": 0,
+  "densify": 2
+
+}

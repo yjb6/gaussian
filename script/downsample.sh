@@ -1,0 +1,1 @@
+python script/downsample_point.py ../datasets/hypernerf/vrig-chicken/colmap/dense/workspace/fused.ply ../datasets/hypernerf/vrig-chicken/points3D_downsample2.ply
