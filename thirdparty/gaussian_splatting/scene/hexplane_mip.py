@@ -218,7 +218,8 @@ class HexPlaneField_mip(nn.Module):
         max_scale = min_scale*torch.tensor(self.reso_list[0]).to(min_scale)
         # print(min_scale,max_scale)
         # print(scales)
-
+        # print("min_scale",min_scale)
+        # print("scales",scales)
         scales = torch.clamp(scales,min_scale,max_scale)
         # print(scales)
         level = torch.log2(2*scales / self.base_scale.unsqueeze(0)) #[N,4]

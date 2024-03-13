@@ -97,6 +97,7 @@ class ModelParams(ParamGroup):
         self.min_intergral = 0.1
         self.min_interval =1
         self.enable_coarse2fine = False
+        self.enable_scale_sum = False
         # self.add_points = False
 
         super().__init__(parser, "Loading Parameters", sentinel) #sentinel为true表示不采用类里定义的默认值，将默认值统一设为None

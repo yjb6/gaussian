@@ -459,9 +459,9 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
             if iteration == opt.pure_static:
                 print("pure static")
                 gaussians.pure_static_points()
-                print("enable time downsample")
-                gaussians.hexplane.convert_to_timedonwsample()
-                gaussians.init_mlp_grd()
+                # print("enable time downsample")
+                # gaussians.hexplane.convert_to_timedonwsample()
+                # gaussians.init_mlp_grd()
                 # gaussians.hexplane.enable_time_downsample = True
             if (iteration-opt.coarse_opacity_reset_interval) % opt.opacity_reset_interval == 0 :
                 print("reset opacity")

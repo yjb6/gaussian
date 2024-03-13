@@ -2253,10 +2253,10 @@ class GaussianModel:
         else:
             plane_model = self.hexplane
 
-        print(self._trbf_scale.min())
+        # print(self._trbf_scale.min())
         scales = torch.cat((self.get_scaling.detach()[valid_mask],self._trbf_scale.detach()[valid_mask]/2),dim=1)
         hexplane_feature = plane_model(self._xyz[valid_mask],self._trbf_center[valid_mask],scales) #[N,D]
-        # # print(hexplane_feature)
+        # print(hexplane_feature.shape)
         trbf_scale = 1-self.opacity_mlp(hexplane_feature) #得到trbf_scale
         min_scale = self.args.min_interval/(self.duration)
         trbf_scale = (1-min_scale)*trbf_scale + min_scale #限制min_scale最小值

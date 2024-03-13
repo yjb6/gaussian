@@ -254,6 +254,9 @@ class GaussianModel:
         trbf_scale = (1-min_scale)*trbf_scale + min_scale #限制min_scale最小值
         self._trbf_scale = trbf_scale
         print(self.hexplane.aabb)
+        self.init_mlp_grd()
+        if self.args.enable_scale_sum:
+            self.init_real_scale()
         if training_args:#test的适合为None
             self.training_setup(training_args)
             self.xyz_gradient_accum = xyz_gradient_accum
@@ -443,22 +446,10 @@ class GaussianModel:
         if self.args.dynamatic_mlp:
             self.dynamatic = torch.zeros_like(self._opacity)
             self.dynamatic_mlp.to("cuda")
-        # def add_mlp(mlp,mlp_name,weight_name=''):
-        #     for name, W in self.mlp.named_parameters():
-        #         if weight_name in name:
-        #             self.mlp_grd[mlp_name+name] = torch.zeros_like(W, requires_grad=False).cuda()
 
-        # add_mlp(self.motion_mlp,"motion")
-        # add_mlp(self.rot_mlp,"rot")
-        # add_mlp(self.opacity_mlp,"opacity")
-        # add_mlp(self.hexplane,"hexplane","grids")
-        # for name, W in self.motion_mlp.named_parameters():
-        #     self.mlp_grd["motion"+name] = torch.zeros_like(W, requires_grad=False).cuda()
-        # for name, W in self.rot_mlp.named_parameters():
-        #     self.mlp_grd["rot"+name] = torch.zeros_like(W, requires_grad=False).cuda()
-        # for name, W in self.hexplane.named_parameters():
-        #     if "grids" in name:
-        #         self.mlp_grd["hexplane"+name] = torch.zeros_like(W, requires_grad=False).cuda()
+        if self.args.enable_scale_sum:
+            self.init_real_scale()
+            
     def static2dynamatic(self):
         self.is_dynamatic = True
         #确定bounding box
@@ -1375,6 +1366,8 @@ class GaussianModel:
         # print(self.max_radii2D.device)
         self.max_radii2D = self.max_radii2D[valid_points_mask]
         self._trbf_scale = self._trbf_scale[valid_points_mask]
+        if self.args.enable_scale_sum:
+            self.scale_sum = self.scale_sum[valid_points_mask]
         # self._motion_fourier = optimizable_tensors["motion_fourier"]
         # self.timescale = optimizable_tensors["timescale"]
         # if self.omegamask is not None :
@@ -1502,18 +1495,20 @@ class GaussianModel:
 
 
         selected_pts_mask = torch.where(padded_grad >= grad_threshold, True, False)
-        if t_grads is not None:
-            t_padded_grad = torch.zeros((n_init_points), device="cuda")
-            t_padded_grad[:t_grads.shape[0]] = t_grads.squeeze()
-            selected_pts_mask = torch.logical_or(selected_pts_mask,torch.where(torch.norm(t_padded_grad, dim=-1) >= 1e-4, True, False)) #尝试
-
+        # if t_grads is not None:
+        #     t_padded_grad = torch.zeros((n_init_points), device="cuda")
+        #     t_padded_grad[:t_grads.shape[0]] = t_grads.squeeze()
+        #     selected_pts_mask = torch.logical_or(selected_pts_mask,torch.where(torch.norm(t_padded_grad, dim=-1) >= 1e-4, True, False)) #尝试
+        spatial_scale = self.get_real_scale()
         selected_pts_mask = torch.logical_and(selected_pts_mask,
-                                              torch.max(self.get_scaling, dim=1).values > self.percent_dense*scene_extent)
+                                              torch.max(spatial_scale, dim=1).values > self.percent_dense*scene_extent)
         # selected_pts_mask = torch.logical_and(selected_pts_mask,
         #                                       (self.get_trbfscale > 0.9).squeeze())
         #trbfmask =  self.trbfoutput > 0.8
         #selected_pts_mask = torch.logical_and(selected_pts_mask, trbfmask.squeeze(1))
-        stds = self.get_scaling[selected_pts_mask].repeat(N,1)
+        
+        stds = spatial_scale[selected_pts_mask].repeat(N,1)
+        # stds = self.get_scaling[selected_pts_mask].repeat(N,1)
         means =torch.zeros((stds.size(0), 3),device="cuda")
         samples = torch.normal(mean=means, std=stds)
         rots = build_rotation(self._rotation[selected_pts_mask]).repeat(N,1,1)
@@ -1534,6 +1529,9 @@ class GaussianModel:
 
         add_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N,1)
         self._trbf_scale = torch.cat((self._trbf_scale,add_trbf_scale),dim=0)
+        if self.args.enable_scale_sum:
+            new_scale_sum = self.scale_sum[selected_pts_mask].repeat(N,1)/(0.8*N)
+            self.scale_sum = torch.cat((self.scale_sum,new_scale_sum),dim=0)
 
         prune_filter = torch.cat((selected_pts_mask, torch.zeros(N * selected_pts_mask.sum(), device="cuda", dtype=bool)))
         self.prune_points(prune_filter)
@@ -1549,10 +1547,11 @@ class GaussianModel:
 
         # Extract points that satisfy the gradient condition
         selected_pts_mask = torch.where(torch.norm(grads, dim=-1) >= grad_threshold, True, False)
-        if t_grads is not None:
-            selected_pts_mask = torch.logical_or(selected_pts_mask,torch.where(torch.norm(t_grads, dim=-1) >= 1e-4, True, False)) #尝试
+        # if t_grads is not None:
+        #     selected_pts_mask = torch.logical_or(selected_pts_mask,torch.where(torch.norm(t_grads, dim=-1) >= 1e-4, True, False)) #尝试
+        spatial_scale = self.get_real_scale()
         selected_pts_mask = torch.logical_and(selected_pts_mask,
-                                              torch.max(self.get_scaling, dim=1).values <= self.percent_dense*scene_extent)
+                                              torch.max(spatial_scale, dim=1).values <= self.percent_dense*scene_extent)
 
         
         #trbfmask =  self.trbfoutput > 0.8
@@ -1580,6 +1579,10 @@ class GaussianModel:
         add_trbf_scale = self._trbf_scale[selected_pts_mask]
         new_trbf_scale = torch.cat((self._trbf_scale,add_trbf_scale),dim=0)
         self._trbf_scale = new_trbf_scale
+
+        if self.args.enable_scale_sum:
+            new_scale_sum = self.scale_sum[selected_pts_mask]
+            self.scale_sum = torch.cat((self.scale_sum,new_scale_sum),dim=0)
         # print(torch.min(self._trbf_center),torch.max(self._trbf_center))
 
     def densify_pruneclone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
@@ -1630,13 +1633,16 @@ class GaussianModel:
         # prune_mask = torch.logical_or(prune_mask,small_t_scale)
         # prune_mask = torch.logical_or(prune_mask, torch.logical_or(small_t_scale, big_t_scale))
         if max_screen_size:
-            big_points_vs = self.max_radii2D > max_screen_size  
-            big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
+            big_points_vs = self.max_radii2D > max_screen_size
+            spatial_scale = self.get_real_scale()  
+            big_points_ws = spatial_scale.max(dim=1).values > 0.1 * extent
 
             prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
         self.prune_points(prune_mask)
         print("after pure", self._xyz.shape[0])
         # exit()
+        if self.args.enable_scale_sum:
+            self.init_real_scale()
         torch.cuda.empty_cache()
 
     def add_densification_stats(self, viewspace_point_tensor, update_filter):
@@ -1924,6 +1930,18 @@ class GaussianModel:
         # print(p1,p2)
         return self.get_trbfscale*np.sqrt(np.pi)/2*(p1-p2)
         return self.get_trbfscale
+    def get_real_scale(self):
+        if not self.args.enable_scale_sum or self.itercount == 0:
+            return self.get_scaling
+        else:
+            return self.scale_sum/self.itercount
+    def init_real_scale(self):
+        self.itercount = 0 #两次densify之间的deform次数
+        self.scale_sum = torch.zeros_like(self.get_scaling,requires_grad=False)
+    def count_real_scale(self,scales):
+        if self.args.enable_scale_sum:
+            self.itercount += 1
+            self.scale_sum += scales.detach()
     def get_deformation(self,timestamp):
         # inv_intergral = 1/self.get_intergral()
         # print(inv_intergral.mean(),inv_intergral.max(),inv_intergral.min())
@@ -1933,7 +1951,9 @@ class GaussianModel:
         # t_nan = self._trbf_center.isnan().sum()
         # print(t_nan)
         # temp_scale = torch.ones_like(self._trbf_center)
-        scales = torch.cat((self.get_scaling,self._trbf_scale.detach()/2),dim=1)
+        spatial_scale = self.get_real_scale()
+        # print("realscale",spatial_scale)
+        scales = torch.cat((spatial_scale,self._trbf_scale.detach()/2),dim=1)
         # print(scales.shape)
         hexplane_feature = self.hexplane(self._xyz,self._trbf_center,scales) #[N,D]
         # print(hexplane_feature.shape)
@@ -1995,10 +2015,17 @@ class GaussianModel:
             # *(1-trbfoutput.detach())
             # print("rs",rot_residual)
             # print(self._rotation,self._scaling)
+            # scale_res =  rot_residual[:,4:]
+            base_scale = self.get_scaling.detach()
+            # print((scale-base_scale).mean())
             rot = self._rotation + rot_residual[:,:4]
             scale = self._scaling + rot_residual[:,4:]
+
             rot = self.rotation_activation(rot)
             scale = self.scaling_activation(scale)
+            self.count_real_scale(scale)
+            # print("scale_res",(scale.detach()-base_scale).mean(dim=0)) #x,z上 scale会增大，并且幅度更大，y上scale会减小。
+
         else:
             rot = self.get_rotation
             scale = self.get_scaling
