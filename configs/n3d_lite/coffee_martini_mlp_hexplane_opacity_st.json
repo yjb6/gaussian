@@ -50,6 +50,7 @@
   "use_shs":true,
   "min_intergral":0.0016,
   "dscale":false,
-  "enable_scale_sum":false
+  "enable_scale_sum":false,
+  "scale_rot":false
 
 }

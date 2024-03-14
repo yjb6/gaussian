@@ -66,9 +66,10 @@ class ModelParams(ParamGroup):
 
         self.dx =True
         self.drot = True
-        self.dscale = True
+        self.dscale = False
         self.dopacity = True
         self.dsh = False
+        self.scale_rot = True #false表示将scale rot分开学习，反之表示一起学习
         self.dynamatic_mlp =False
         self.key_frame_nums = -1
         self.use_shs =True
