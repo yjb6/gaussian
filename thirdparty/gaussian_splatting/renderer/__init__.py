@@ -1191,10 +1191,10 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
 
     print(pc._trbf_scale.min())
     print(pc._xyz.max(dim=0),pc._xyz.min(dim=0),pc._xyz.shape)
-    select_mask = (pc._xyz[:,2] >200).squeeze()
+    # select_mask = (pc._xyz[:,2] >200).squeeze()
     # print("sssum",(pc.get_opacity[~pc.dynamatic_mask]<0.005).sum()) 
     # select_mask = torch.logical_and(pc._trbf_scale >0.5,intergral<0.1).squeeze()    # select_mask = (torch.logical_and(pc.xyz[:,2] >45,pc._xyz[:,2] <175)).squeeze()
-    # select_mask = pc.dynamatic_mask
+    select_mask = pc.dynamatic_mask
     # select_mask = ~select_mask
     print(intergral[select_mask].min(),intergral[select_mask].max())
     print(select_mask.sum())

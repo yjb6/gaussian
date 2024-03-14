@@ -51,6 +51,8 @@
   "min_intergral":0.0016,
   "dscale":false,
   "enable_scale_sum":false,
-  "scale_rot":false
+  "scale_rot":true,
+  "scale_reg":true,
+  "lambda_dscale_reg":1e-4
 
 }

@@ -203,6 +203,10 @@ def getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii,timestamp,iteratio
         scale_entropy = -(gaussians.get_trbfscale * torch.log(gaussians.get_trbfscale+1e-36) + (1-gaussians.get_trbfscale)*torch.log((1 -gaussians.get_trbfscale + 1e-36)))
         Ldscale_entropy=scale_entropy.mean(dim=0)
         loss = loss + opt.lambda_dscale_entropy * Ldscale_entropy
+    
+    if opt.lambda_dscale_reg>0:
+        Ldscale_reg = torch.linalg.vector_norm(gaussians.scale_residual , ord=2)
+        loss = loss + opt.lambda_dscale_reg * Ldscale_reg
 
     #记录各种loss
     loss_dict ={"Ll1":Ll1}
@@ -380,7 +384,7 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     gaussians.prune_points(prune_mask)
                     torch.cuda.empty_cache()
                     scene.recordpoints(iteration, "addionally prune_mask")
-            if iteration % opt.opacity_reset_interval+1 == 0 :
+            if iteration % opt.opacity_reset_interval == 0 :
                 print("reset opacity")
                 gaussians.reset_opacity()
 

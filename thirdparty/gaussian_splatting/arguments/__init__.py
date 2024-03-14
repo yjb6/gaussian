@@ -73,6 +73,7 @@ class ModelParams(ParamGroup):
         self.dynamatic_mlp =False
         self.key_frame_nums = -1
         self.use_shs =True
+        self.scale_reg = False
         #hexplane config:
         self.bounds = 1.6
         self.kplanes_config = {
@@ -153,6 +154,7 @@ class OptimizationParams(ParamGroup):
         self.lambda_dtstd = 0
         self.lambda_dscale_entropy = 0
         self.lambda_dl1_opacity = 0
+        self.lambda_dscale_reg = 0
         self.densification_interval = 100
         self.opacity_reset_interval = 3_000
         self.opacity_reset_at = 10000
@@ -192,7 +194,7 @@ class OptimizationParams(ParamGroup):
         self.static_iteration = -1 # -1 静态场景训练结束时间。-1表示直接就是动态的
         self.use_weight_decay = False
         self.max_points_num = -1
-
+        
         #hexplane config:
         self.plane_tv_weight = 0.0001
         self.time_smoothness_weight = 0.01

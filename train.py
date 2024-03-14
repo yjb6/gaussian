@@ -449,7 +449,8 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 #     # print(scene.gaussians._trbf_scale[~scene.gaussians.dynamatic_mask].min())
                 #     scale_torch = scene.gaussians.get_intergral()
                 #     # print(scale_torch[~scene.gaussians.dynamatic_mask].min(),scale_torch[~scene.gaussians.dynamatic_mask].max())
-                #     print((scale_torch<0.5).sum())
+                #     print((scale_torch<0.0016).sum())
+                #     print((scene.gaussians._trbf_scale>0.5).sum())
                 #     print(scale_torch[(scene.gaussians._trbf_scale>0.9).squeeze()].min())
                 #     inv_scale_torch = 1/scale_torch
                 #     # inv_scale_torch[inv_scale_torch.isnan()] = 0
@@ -920,6 +921,8 @@ if __name__ == "__main__":
     print("current pid:",os.getpid())
     args, lp_extract, op_extract, pp_extract = getparser()
     print("start_train")
+    torch.manual_seed(666)
+    np.random.seed(666)
     if args.model_path == "":
         args.model_path = os.path.join("log",os.path.join(args.dataset, args.exp_name ))
     print(args.model_path)
