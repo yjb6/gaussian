@@ -66,6 +66,7 @@ class ModelParams(ParamGroup):
 
         self.dx =True
         self.drot = True
+        self.dscale = True
         self.dopacity = True
         self.dsh = False
         self.dynamatic_mlp =False

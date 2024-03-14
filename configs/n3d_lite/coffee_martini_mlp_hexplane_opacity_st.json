@@ -34,7 +34,7 @@
     "grid_dimensions": 2,
     "input_coordinate_dim": 4,
     "output_coordinate_dim": 16,
-    "resolution": [128, 128,128, 256]
+    "resolution": [256, 256,256, 256]
   },
   "multires":[1],
   "valloader": "colmapvalid",
@@ -49,6 +49,7 @@
   "dsh":true,
   "use_shs":true,
   "min_intergral":0.0016,
-  "enable_scale_sum":true
+  "dscale":false,
+  "enable_scale_sum":false
 
 }

@@ -128,7 +128,9 @@ class GaussianModel:
 
         self.motion_mlp = nn.Sequential(nn.Linear(out_dim+hexplane_outdim,self.H),nn.ReLU(),nn.Linear(self.H,self.H),nn.ReLU(),nn.Linear(self.H, 3))
         # self.motion_mlp = nn.Sequential(nn.Linear(self.D + out_dim,self.H),nn.ReLU(),nn.Linear(self.H, self.H),nn.ReLU(),nn.Linear(self.H, 3))
-        self.rot_mlp = nn.Sequential(nn.Linear(out_dim+hexplane_outdim,self.H),nn.ReLU(),nn.Linear(self.H,self.H),nn.ReLU(),nn.Linear(self.H, 7))
+        self.rot_mlp = nn.Sequential(nn.Linear(out_dim+hexplane_outdim,self.H),nn.ReLU(),nn.Linear(self.H,self.H),nn.ReLU(),nn.Linear(self.H,7))
+        if self.args.dscale:
+            self.scale_mlp = nn.Sequential(nn.Linear(out_dim+hexplane_outdim,self.H),nn.ReLU(),nn.Linear(self.H,self.H),nn.ReLU(),nn.Linear(self.H, 3))
         # print(self.H/2)
         self.opacity_mlp = nn.Sequential(nn.Linear(hexplane_outdim,self.H),nn.ReLU(),nn.Linear(self.H,int(self.H/2) ),nn.ReLU(),nn.Linear(int(self.H/2), 1),nn.Sigmoid())#考虑整合进某个别的mlp中
         self.shs_mlp = nn.Sequential(nn.Linear(out_dim+hexplane_outdim,self.H),nn.ReLU(),nn.Linear(self.H,self.H),nn.ReLU(),nn.Linear(self.H, 48))
@@ -761,6 +763,8 @@ class GaussianModel:
             elif param_group["name"] == "f_dc":
                 lr = self.training_args.feature_lr * self.inv_intergral
                 param_group['lr'] = lr
+            # elif param_group["name"] == "rot_mlp":
+            #     lr = 0
 
         # for param_group in self.optimizer.param_groups:
         #     print(param_group['name'],param_group['lr'])
@@ -1586,6 +1590,10 @@ class GaussianModel:
         # print(torch.min(self._trbf_center),torch.max(self._trbf_center))
 
     def densify_pruneclone(self, max_grad, min_opacity, extent, max_screen_size, splitN=1):
+        spatial_scale = self.get_real_scale()  
+        big_points_ws = spatial_scale.max(dim=1).values > 0.1 * extent
+        print("indexs",torch.nonzero(big_points_ws))
+
         #print("before", torch.amax(self.get_scaling))
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0
@@ -1636,8 +1644,11 @@ class GaussianModel:
             big_points_vs = self.max_radii2D > max_screen_size
             spatial_scale = self.get_real_scale()  
             big_points_ws = spatial_scale.max(dim=1).values > 0.1 * extent
-
+            print(extent)
+            print(torch.nonzero(big_points_ws))
+            print("size_prune",big_points_vs.sum()+big_points_ws.sum())
             prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+            # prune_mask = torch.logical_or(prune_mask,  big_points_ws)
         self.prune_points(prune_mask)
         print("after pure", self._xyz.shape[0])
         # exit()
@@ -2019,16 +2030,36 @@ class GaussianModel:
             base_scale = self.get_scaling.detach()
             # print((scale-base_scale).mean())
             rot = self._rotation + rot_residual[:,:4]
-            scale = self._scaling + rot_residual[:,4:]
+            # scale = self._scaling + rot_residual[:,4:]
 
             rot = self.rotation_activation(rot)
-            scale = self.scaling_activation(scale)
-            self.count_real_scale(scale)
+
+            if self.args.scale_rot:
+                scale_res =  rot_residual[:,4:]
+                scale = self._scaling + rot_residual[:,4:]
+                scale = self.scaling_activation(scale)
+            # scale = self.scaling_activation(scale)
+            # self.count_real_scale(scale)
+            # print("base",base_scale[self._xyz[:,2]>100].mean().detach())
+            # print("now",scale[self._xyz[:,2]>100].mean().detach())
+            # print("real",self.get_real_scale()[self._xyz[:,2]>100].mean().detach())
+            # print("base",base_scale[1].detach(),base_scale[3].detach(),base_scale[8].detach(),base_scale[446733].detach(),base_scale[446799].detach(),base_scale[446888].detach())
+            # print("now",scale[1].detach(),scale[3].detach(),scale[8].detach(),scale[446733].detach(),scale[446799].detach(),scale[446888].detach())
+            # print("real",self.get_real_scale()[1].detach(),self.get_real_scale()[3].detach(),self.get_real_scale()[8].detach(),self.get_real_scale()[446733].detach(),self.get_real_scale()[446799].detach(),self.get_real_scale()[446888].detach())
             # print("scale_res",(scale.detach()-base_scale).mean(dim=0)) #x,z上 scale会增大，并且幅度更大，y上scale会减小。
 
         else:
             rot = self.get_rotation
-            scale = self.get_scaling
+            if self.args.scale_rot:
+                scale = self.get_scaling
+        #若为scale_rot,则scale归上面的管。否则scale归下面的管
+        if not self.args.scale_rot:
+            if self.args.dscale:
+                scale_res = self.scale_mlp(deform_feature)
+                scale = self._scaling + scale_res
+                scale = self.scaling_activation(scale)
+            else:
+                scale = self.get_scaling
 
         if self.args.dopacity:
             # print(self.opacity_mlp.state_dict())

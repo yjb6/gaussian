@@ -380,7 +380,7 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     gaussians.prune_points(prune_mask)
                     torch.cuda.empty_cache()
                     scene.recordpoints(iteration, "addionally prune_mask")
-            if iteration % opt.opacity_reset_interval == 0 :
+            if iteration % opt.opacity_reset_interval+1 == 0 :
                 print("reset opacity")
                 gaussians.reset_opacity()
 
