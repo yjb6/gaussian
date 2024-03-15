@@ -45,10 +45,20 @@
     "lambda_dtstd" :1e-4,
     "lambda_dl1_opacity" : 0,
     "lambda_dscale_entropy":0,
+    "lambda_dplanetv":0,
+    "lambda_dtime_smooth":0,
+    "lambda_dscale_reg":0,
+
     "iterations":30000,
     "dsh":true,
     "use_shs":true,
-    "min_intergral":0.0008
+    "min_intergral":0.0016,
+    "dscale":false,
+    "enable_scale_sum":false,
+    "scale_rot":true,
+    "scale_reg":false
+ 
+
   
   
   }

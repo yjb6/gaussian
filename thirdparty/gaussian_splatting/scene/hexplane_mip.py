@@ -139,6 +139,21 @@ def interpolate_ms_features(pts: torch.Tensor,
         multi_scale_interp = torch.cat(multi_scale_interp, dim=-1)
     return multi_scale_interp
 
+def compute_plane_smoothness(t):
+    batch_size, c, h, w = t.shape
+    # Convolve with a second derivative filter, in the time dimension which is dimension 2
+    first_difference = t[..., 1:, :] - t[..., :h-1, :]  # [batch, c, h-1, w]
+    second_difference = first_difference[..., 1:, :] - first_difference[..., :h-2, :]  # [batch, c, h-2, w]
+    # Take the L2 norm of the result
+    return torch.square(second_difference).mean()
+
+def compute_plane_tv(t):
+    batch_size, c, h, w = t.shape
+    count_h = batch_size * c * (h - 1) * w
+    count_w = batch_size * c * h * (w - 1)
+    h_tv = torch.square(t[..., 1:, :] - t[..., :h-1, :]).sum()
+    w_tv = torch.square(t[..., :, 1:] - t[..., :, :w-1]).sum()
+    return 2 * (h_tv / count_h + w_tv / count_w)  # This is summing over batch and c instead of avg
 
 class HexPlaneField_mip(nn.Module):
     def __init__(
@@ -301,3 +316,19 @@ class HexPlaneField_mip(nn.Module):
                 print(features.device)
                 self.grids[fb][idx] = nn.Parameter(features)
     
+    def planetv(self):
+        spatial_planes = [0,1,3]
+        total = 0
+        for grids in self.grids:
+            # for idx,grid in enumerate(grids):
+            for spatial_plane in spatial_planes:
+                total += compute_plane_tv(grids[spatial_plane])
+        return total
+    
+    def timesmooth(self):
+        total = 0
+        time_planes = [1,4,5]
+        for grids in self.grids:
+            for time_idx in time_planes:
+                total += compute_plane_smoothness(grids[time_idx])
+        return total

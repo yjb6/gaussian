@@ -155,6 +155,8 @@ class OptimizationParams(ParamGroup):
         self.lambda_dscale_entropy = 0
         self.lambda_dl1_opacity = 0
         self.lambda_dscale_reg = 0
+        self.lambda_dplanetv = 0
+        self.lambda_dtime_smooth = 0
         self.densification_interval = 100
         self.opacity_reset_interval = 3_000
         self.opacity_reset_at = 10000

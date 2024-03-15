@@ -207,7 +207,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 # validdepthdict[viewpoint_cam.image_name] = torch.median(depth[slectemask]).item()   
                 # depthdict[viewpoint_cam.image_name] = torch.amax(depth[slectemask]).item() 
     
-    if (densify == 1 or  densify == 2 )and not dataset.random_init: 
+    if (densify == 1 or  densify == 2 or densify == 4) and not dataset.random_init: 
         #这个过滤对减少悬浮物非常的重要
         zmask = gaussians._xyz[:,2] < 4.5  
 
@@ -231,6 +231,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
     # print("reset opacity")
     print(gaussians.get_scaling.max(),gaussians.get_scaling.mean(),gaussians.get_scaling.min())
     # exit()
+    # testing_iterations += [for i in range(opt.iterations) if i%100==1]
     while iteration < opt.iterations+1:
         # print(iteration)
         for camindex in loader: #统一使用dataloder
@@ -513,7 +514,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 # wandb report
                 test_psnr,history_data = training_report(wandb_run,test_loader,iteration, scene.model_path, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, 
                 ( pipe, background) , loss_dict=loss_dict,history_data=history_data,stage=stage )
-                if (iteration in testing_iterations):
+                if (iteration in testing_iterations ):
                     if test_psnr >= best_psnr:
                         best_psnr = test_psnr
                         print("\n[ITER {}] Saving best checkpoint".format(iteration))
@@ -522,7 +523,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                         torch.save((gaussians.capture(), iteration), save_path)
             
                 #save
-                if (iteration in saving_iterations):
+                if (iteration in saving_iterations or iteration%500==0):
                     print("\n[ITER {}] Saving Gaussians".format(iteration))
                     scene.save(iteration)
 
@@ -808,7 +809,7 @@ def training_report(wd_writer, test_loader,iteration, model_path, loss, l1_loss,
 
     psnr_test_iter = 0.0
     # Report test and samples of training set
-    if iteration in testing_iterations:
+    if iteration in testing_iterations or iteration % 100 == 1:
         if history_data is None:
             history_data = {'psnr_perframe':[],"keys":[]}
         elif "psnr_perframe" not in history_data or "keys" not in history_data:
@@ -855,7 +856,10 @@ def training_report(wd_writer, test_loader,iteration, model_path, loss, l1_loss,
 
 
                         torchvision.utils.save_image(image, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
-
+                    if iteration not in testing_iterations:
+                        break #这种情况只测试第一张图
+                    # print(psnr_test_list[-1])
+                    # break
                     # print(psnr_test_list)
             # wandb.log({"PSNR/Iteration": psnr_test_list}, step=iteration)
             psnr_test =np.mean(psnr_test_list)

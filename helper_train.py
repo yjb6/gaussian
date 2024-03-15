@@ -208,6 +208,13 @@ def getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii,timestamp,iteratio
         Ldscale_reg = torch.linalg.vector_norm(gaussians.scale_residual , ord=2)
         loss = loss + opt.lambda_dscale_reg * Ldscale_reg
 
+    if opt.lambda_dplanetv>0:
+        Ldplanetv = gaussians.hexplane.planetv()
+        loss += opt.lambda_dplanetv * Ldplanetv
+    if opt.lambda_dtime_smooth>0:
+        Ldtime_smooth = gaussians.hexplane.timesmooth()
+        loss += opt.lambda_dtime_smooth*Ldtime_smooth
+
     #记录各种loss
     loss_dict ={"Ll1":Ll1}
     with torch.no_grad():
@@ -216,6 +223,7 @@ def getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii,timestamp,iteratio
                 # ema = vars()[f"ema_{lambda_name.replace('lambda_', '')}_for_log"]
                 # vars()[f"ema_{lambda_name.replace('lambda_', '')}_for_log"] = 0.4 * vars()[f"L{lambda_name.replace('lambda_', '')}"].item() + 0.6*ema
                 loss_dict[lambda_name.replace("lambda_", "L")] = vars()[lambda_name.replace("lambda_", "L")]
+        # print(loss_dict)
         return loss, loss_dict
     # if opt.reg == 1: # add optical flow loss
     #     loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image)) + opt.regl * torch.sum(gaussians._motion) / gaussians._motion.shape[0]

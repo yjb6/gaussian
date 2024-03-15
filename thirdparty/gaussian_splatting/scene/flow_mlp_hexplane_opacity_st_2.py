@@ -149,53 +149,83 @@ class GaussianModel:
         self.min_intergral = self.args.min_intergral #最小的intergral，小于这个的应该被过滤掉
         self.is_dynamatic = False
     def capture(self):
-        if self.args.dsh:
-            return (
-                self.active_sh_degree,
-                self._xyz,
-                self._features_dc,
-                self._features_rest,
-                self._scaling,
-                self._rotation,
-                self._opacity,
-                self.max_radii2D,
-                self.xyz_gradient_accum,
-                self.denom,
-                self.optimizer.state_dict(),
-                self.spatial_lr_scale,
-                self.motion_mlp,
-                self.rot_mlp,
-                self.opacity_mlp,
-                self.shs_mlp,
-                self.hexplane,
-                self._motion,
-                self._omega,
-                self._trbf_center,
-                self._trbf_scale
-            )
-        else:
-            return (
-                self.active_sh_degree,
-                self._xyz,
-                self._features_dc,
-                self._features_rest,
-                self._scaling,
-                self._rotation,
-                self._opacity,
-                self.max_radii2D,
-                self.xyz_gradient_accum,
-                self.denom,
-                self.optimizer.state_dict(),
-                self.spatial_lr_scale,
-                self.motion_mlp,
-                self.rot_mlp,
-                self.opacity_mlp,
-                self.hexplane,
-                self._motion,
-                self._omega,
-                self._trbf_center,
-                self._trbf_scale
-            )
+        self.opt_dict = self.optimizer.state_dict()
+        attributes = [
+        "active_sh_degree",
+        "_xyz",
+        "_features_dc",
+        "_features_rest",
+        "_scaling",
+        "_rotation",
+        "_opacity",
+        "max_radii2D",
+        "xyz_gradient_accum",
+        "denom",
+        "opt_dict",
+        "spatial_lr_scale",
+        "motion_mlp",
+        "rot_mlp",
+        "opacity_mlp",
+        "shs_mlp" if self.args.dsh else None,
+        "scale_mlp" if self.args.dscale else None,
+        "hexplane",
+        "_motion",
+        "_omega",
+        "_trbf_center",
+        "_trbf_scale"
+    ]
+
+    # 动态构建返回值元组
+        return_values = tuple(
+            getattr(self, attr_name)  for attr_name in attributes if attr_name)
+        return return_values
+        # if self.args.dsh:
+        #     return (
+        #         self.active_sh_degree,
+        #         self._xyz,
+        #         self._features_dc,
+        #         self._features_rest,
+        #         self._scaling,
+        #         self._rotation,
+        #         self._opacity,
+        #         self.max_radii2D,
+        #         self.xyz_gradient_accum,
+        #         self.denom,
+        #         self.optimizer.state_dict(),
+        #         self.spatial_lr_scale,
+        #         self.motion_mlp,
+        #         self.rot_mlp,
+        #         self.opacity_mlp,
+        #         self.shs_mlp,
+        #         self.hexplane,
+        #         self._motion,
+        #         self._omega,
+        #         self._trbf_center,
+        #         self._trbf_scale
+        #     )
+        # else:
+        #     return (
+        #         self.active_sh_degree,
+        #         self._xyz,
+        #         self._features_dc,
+        #         self._features_rest,
+        #         self._scaling,
+        #         self._rotation,
+        #         self._opacity,
+        #         self.max_radii2D,
+        #         self.xyz_gradient_accum,
+        #         self.denom,
+        #         self.optimizer.state_dict(),
+        #         self.spatial_lr_scale,
+        #         self.motion_mlp,
+        #         self.rot_mlp,
+        #         self.opacity_mlp,
+        #         self.hexplane,
+        #         self._motion,
+        #         self._omega,
+        #         self._trbf_center,
+        #         self._trbf_scale
+        #     )
     
     def restore(self, model_args, training_args):
         attributes = [
@@ -1676,6 +1706,10 @@ class GaussianModel:
         # time_mask = torch.logical_or(self.get_trbfcenter < 0, self.get_trbfcenter > 1).squeeze()
         # prune_mask = torch.logical_or(prune_mask,time_mask )
         prune_mask = torch.logical_or(prune_mask, intergral_mask)
+
+        z_mask = (self.get_xyz[:,2] < 4.5).squeeze()
+        print("pure_z",z_mask.sum())
+        prune_mask = torch.logical_or(prune_mask, z_mask)
         # small_t_center = (self.get_trbfcenter < 0).squeeze()
         # big_t_center = (self.get_trbfcenter > 1).squeeze()
         # prune_mask = torch.logical_or(prune_mask, torch.logical_or(small_t_center, big_t_center))
@@ -1686,10 +1720,10 @@ class GaussianModel:
             # spatial_scale = self.get_real_scale()  
             big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
             print(extent)
-            print(torch.nonzero(big_points_ws))
+            # print(torch.nonzero(big_points_ws))
             print("size_prune",big_points_vs.sum()+big_points_ws.sum())
-            prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
-            # prune_mask = torch.logical_or(prune_mask,  big_points_ws)
+            # prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
+            prune_mask = torch.logical_or(prune_mask,  big_points_vs)#只用vs
         self.prune_points(prune_mask)
         print("after pure", self._xyz.shape[0])
         # exit()
