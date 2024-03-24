@@ -1529,7 +1529,8 @@ class GaussianModel:
         # print(self.max_radii2D.device)
         self.max_radii2D = self.max_radii2D[valid_points_mask]
         self._trbf_scale = self._trbf_scale[valid_points_mask]
-        self.real_xyz = self.real_xyz[valid_points_mask]
+        if hasattr(self,"real_xyz"):
+            self.real_xyz = self.real_xyz[valid_points_mask]
         if self.args.enable_scale_sum:
             self.scale_sum = self.scale_sum[valid_points_mask]
         # self._motion_fourier = optimizable_tensors["motion_fourier"]

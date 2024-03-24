@@ -971,7 +971,7 @@ if __name__ == "__main__":
     wandb_run = None
     if not args.no_wandb:
         tags = ['test']
-        wandb_run = wandb.init(project=args.dataset, name=args.exp_name,config=args,save_code=True,resume=False,tags=tags) #resume为true并没有什么好处
+        wandb_run = wandb.init(project=args.dataset, name=args.exp_name,config=args,save_code=True,resume=True,tags=tags,id="jfruaj3y") #resume为true并没有什么好处
     try:
         train(lp_extract, op_extract, pp_extract, args.save_iterations,args.testing_iterations, args.debug_from, checkpoint=args.checkpoint,densify=args.densify, duration=args.duration, wandb_run=wandb_run,rgbfunction=args.rgbfunction, rdpip=args.rdpip)
     except Exception as e:
