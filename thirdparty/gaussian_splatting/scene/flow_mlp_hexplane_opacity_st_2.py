@@ -361,6 +361,7 @@ class GaussianModel:
         motion_residual = self.motion_mlp(base_deform_feature)
         self.real_xyz = self._xyz + motion_residual
         print(self.hexplane.aabb)
+        print(self.hexplane)
         self.init_mlp_grd()
         if self.args.enable_scale_sum:
             self.init_real_scale()

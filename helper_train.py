@@ -413,11 +413,11 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                 print("reset opacity")
                 gaussians.reset_opacity()
 
-        # else:
-        #     if iteration % 50 == 0 :
-        #         zmask = gaussians._xyz[:,2] < 4.5  # for stability  
-        #         gaussians.prune_points(zmask) 
-        #         torch.cuda.empty_cache()
+        else:
+            if iteration % 50 == 0 :
+                zmask = gaussians.real_xyz[:,2] < 4.5  # for stability  
+                gaussians.prune_points(zmask) 
+                torch.cuda.empty_cache()
         return flag
     
 
