@@ -168,15 +168,15 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, near, far, 
             assert os.path.exists(image_path), "Image {} does not exist!".format(image_path)
             image = Image.open(image_path)
             #这里的改动是让所有的cam_info都去记录相机位姿，因为后面再去遍历dataset代价太大，太慢
-            cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
+            # cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
 
-            # if j == startime:
-            #     #这里只让starttime记录相机位姿，因为后面的都是一样的
-            #     # cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=hpposes[sortednamedict[os.path.basename(extr.name)]], hpdirecitons=hpdirecitons,cxr=0.0, cyr=0.0)
-            #     cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
+            if j == startime:
+                #这里只让starttime记录相机位姿，因为后面的都是一样的
+                # cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=hpposes[sortednamedict[os.path.basename(extr.name)]], hpdirecitons=hpdirecitons,cxr=0.0, cyr=0.0)
+                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=1, hpdirecitons=1,cxr=0.0, cyr=0.0)
 
-            # else:
-            #     cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=None, hpdirecitons=None, cxr=0.0, cyr=0.0)
+            else:
+                cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image, image_path=image_path, image_name=image_name, width=width, height=height, near=near, far=far, timestamp=(j-startime)/duration, pose=None, hpdirecitons=None, cxr=0.0, cyr=0.0)
             cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos

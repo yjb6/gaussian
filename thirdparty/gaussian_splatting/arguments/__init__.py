@@ -74,6 +74,8 @@ class ModelParams(ParamGroup):
         self.key_frame_nums = -1
         self.use_shs =True
         self.scale_reg = False
+        self.shs_reg = False
+        self.motion_reg = False
         #hexplane config:
         self.bounds = 1.6
         self.kplanes_config = {
@@ -101,8 +103,11 @@ class ModelParams(ParamGroup):
         self.min_interval =1
         self.enable_coarse2fine = False
         self.enable_scale_sum = False
+        self.rgbdecoder =None
+        self.onemlp =False
         # self.add_points = False
-
+        self.sigmoid_tcenter = False
+        self.pw=False
         super().__init__(parser, "Loading Parameters", sentinel) #sentinel为true表示不采用类里定义的默认值，将默认值统一设为None
 
     def extract(self, args):
@@ -130,6 +135,7 @@ class OptimizationParams(ParamGroup):
         self.scaling_lr = 0.005
 
         self.trbfc_lr = 0.0001 # 
+        self.trbfc_lr_final = 0.0000001
         self.trbfs_lr = 0.03
         self.trbfslinit = 0.0 # 
         self.batch = 2
@@ -155,6 +161,8 @@ class OptimizationParams(ParamGroup):
         self.lambda_dscale_entropy = 0
         self.lambda_dl1_opacity = 0
         self.lambda_dscale_reg = 0
+        self.lambda_dshs_reg = 0
+        self.lambda_dmotion_reg = 0
         self.lambda_dplanetv = 0
         self.lambda_dtime_smooth = 0
         self.densification_interval = 100

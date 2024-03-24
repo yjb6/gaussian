@@ -156,8 +156,8 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 #         print(data)
 
             else:
-                loader = DataLoader(traincam_dataset, batch_size=opt.batch,shuffle=True,num_workers=32,collate_fn=list)
-                test_loader = DataLoader(scene.getTestCameras(), batch_size=1,shuffle=False,num_workers=32,collate_fn=lambda x: x)
+                loader = DataLoader(traincam_dataset, batch_size=opt.batch,shuffle=True,num_workers=16,collate_fn=list)
+                test_loader = DataLoader(scene.getTestCameras(), batch_size=1,shuffle=False,num_workers=16,collate_fn=lambda x: x)
                 # while True:
                 #     for data in loader:
                 #         print(data)
@@ -214,6 +214,8 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
         gaussians.prune_points(zmask) 
         print("After pure z<4.5",gaussians._xyz.shape[0])
         torch.cuda.empty_cache()
+        # prune_mask =  (gaussians.get_opacity < opt.opthr).squeeze()
+        # gaussians.prune_points(prune_mask)
 
 
     selectedlength = 2
@@ -231,7 +233,8 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
     # print("reset opacity")
     print(gaussians.get_scaling.max(),gaussians.get_scaling.mean(),gaussians.get_scaling.min())
     # exit()
-    # testing_iterations += [for i in range(opt.iterations) if i%100==1]
+    testing_iterations += [i for i in range(opt.densify_until_iter,opt.iterations) if i%500==0]
+    print(testing_iterations)
     while iteration < opt.iterations+1:
         # print(iteration)
         for camindex in loader: #统一使用dataloder
@@ -252,7 +255,16 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 flagems = 1 # start ems . 并且这个ems是只进行一次的
 
             iter_start.record()
-            gaussians.update_learning_rate(iteration,stage=stage)
+            # if iteration > opt.densify_until_iter:
+            #     use_intergral=False
+            # else:
+            #     use_intergral =True
+            use_intergral =True
+            if iteration > opt.densify_until_iter:
+                scale_intergral= False
+            else:
+                scale_intergral = True
+            gaussians.update_learning_rate(iteration,stage=stage,use_intergral=use_intergral,scale_intergral=scale_intergral)
             
             if (iteration - 1) == debug_from:
                 pipe.debug = True
@@ -302,7 +314,6 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 batch_visibility_filter = []
                 batch_radii = []
                 for viewpoint_cam in camindex:
-
                     render_pkg = render(viewpoint_cam, gaussians, pipe, background,stage=stage)
                     image, viewspace_point_tensor, visibility_filter, radii = getrenderparts(render_pkg) 
 
@@ -729,7 +740,7 @@ def training_report(wd_writer, test_loader,iteration, model_path, loss, l1_loss,
         if hasattr(scene.gaussians,"_trbf_center"):
             wandb.log({
                 'scene/trbf_scale_histogram':wandb.Histogram(scene.gaussians.get_trbfscale.cpu().numpy()),
-                'scene/trbf_center_histogram':wandb.Histogram(scene.gaussians._trbf_center.cpu().numpy()),
+                'scene/trbf_center_histogram':wandb.Histogram(scene.gaussians.get_trbfcenter.cpu().numpy()),
                 'scene/trf_center_mean':scene.gaussians.get_trbfcenter.mean().cpu().item(),
                 'scene/trf_center_std':scene.gaussians.get_trbfcenter.std().cpu().item()
             },step=iteration)
@@ -831,6 +842,8 @@ def training_report(wd_writer, test_loader,iteration, model_path, loss, l1_loss,
                 # viewpoint = batch_data
                 # for viewpoint in batch_data:
                     # print(viewpoint.timestamp)
+                    # if iteration not in testing_iterations:
+                    #     viewpoint = validation_configs['cameras'][15]
                     gt_image = viewpoint.original_image.float().cuda()
                     viewpoint = viewpoint.cuda()
                     render_pkg = renderFunc(viewpoint, scene.gaussians, *renderArgs,**renderKwargs )
@@ -872,7 +885,7 @@ def training_report(wd_writer, test_loader,iteration, model_path, loss, l1_loss,
             # print(history_data['psnr_perframe'])
             # print(history_data['keys'])
             print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, validation_configs['name'], l1_test, psnr_test))
-            if wd_writer:
+            if wd_writer and iteration in testing_iterations:
                 wandb.log({
                     validation_configs['name'] + '/ l1_loss': l1_test,
                     validation_configs['name'] + '/psnr': psnr_test,

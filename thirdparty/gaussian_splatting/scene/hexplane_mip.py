@@ -18,10 +18,12 @@ def get_normalized_directions(directions):
 
 
 def normalize_aabb(pts, aabb):
-    return (pts - aabb[0]) * (2.0 / (aabb[1] - aabb[0])) - 1.0
+    # print("pts",pts.max(dim=0),pts.min(dim=0))
+    return (pts - aabb[0])  / (aabb[1] - aabb[0])
 
 def normalize_time(time,duration):
-    return 2*time*duration/(duration-1)-1
+    # print("time",time.max(),time.min())
+    return time*duration/(duration-1)
 
 def grid_sample_wrapper(grid: torch.Tensor, coords: torch.Tensor,levels,max_level=None, align_corners: bool = True) -> torch.Tensor:
     grid_dim = coords.shape[-1]
@@ -49,14 +51,18 @@ def grid_sample_wrapper(grid: torch.Tensor, coords: torch.Tensor,levels,max_leve
     #     align_corners=align_corners,
     #     mode='bilinear', padding_mode='border')
     levels=torch.min(levels,dim=-1).values.unsqueeze(0).unsqueeze(0)#取他们两者之间最小的level
+    # levels = torch.zeros_like(levels)
     # print(grid.shape)
+    # print("level",levels.min(),levels.max())
+    # print("coord",coords.max(),coords.min())
     # print(levels.shape)
     interp =nvdiffrast.torch.texture(
             grid,
             coords,
             mip_level_bias=levels,
+            # filter_mode="linear-mipmap-nearest",
             boundary_mode="clamp",
-            # max_mip_level=7,
+            max_mip_level=7,
         )  # 3xNx1xC
     # print(interp.shape)
     interp = interp.view(B, n,feature_dim)  # [B, n, feature_dim]
@@ -126,7 +132,10 @@ def interpolate_ms_features(pts: torch.Tensor,
         # print(interp_space)
         # combine over scales
         if concat_planes:
-            interp_space = torch.cat(interp_space, dim=-1)
+            # interp_space = torch.cat(interp_space, dim=-1)
+            space = interp_space[0] + interp_space[1] + interp_space[3]
+            time = interp_space[2] + interp_space[4] + interp_space[5]
+            interp_space = torch.cat((space,time),dim=-1)
         else:
             interp_space = sum(interp_space)
             # print(interp_space.shape)
@@ -170,7 +179,7 @@ class HexPlaneField_mip(nn.Module):
         self.grid_config =  [planeconfig]
         self.multiscale_res_multipliers = multires
         self.concat_features = True
-        self.concat_plane = True#若为false，向量之间就是加和，若为true，就是拼接
+        self.concat_plane = False#若为false，向量之间就是加和，若为true，就是拼接
         # 1. Init planes
         self.grids = nn.ModuleList()
         self.feat_dim = 0
@@ -201,7 +210,7 @@ class HexPlaneField_mip(nn.Module):
             self.grids.append(gp)
         # print(f"Initialized model grids: {self.grids}")
         if self.concat_plane:
-            self.feat_dim = self.feat_dim * len(self.grids[0])
+            self.feat_dim = self.feat_dim * 2
         print("feature_dim:",self.feat_dim)
     @property
     def get_aabb(self):
@@ -239,13 +248,24 @@ class HexPlaneField_mip(nn.Module):
         # print(scales)
         level = torch.log2(2*scales / self.base_scale.unsqueeze(0)) #[N,4]
         # print(level)
-        # print(level.mean(dim=0),level.max(dim=0))
+        # print(level.mean(dim=0),level.max(dim=0),level.min(dim=0))
+        # level = scales/self.base_scale
+        level[:,3] = 0.0
+        # level = torch.zeros_like(level)
+        # level.to(torch.float32)
+        # print("11",level,level.shape)
         return level
 
+    def set_base_scale(self,scale):
+        pass
+        # scale = 0.1*scale
+        # print(scale)
+        # self.base_scale = torch.tensor([scale,scale,scale,1],device="cuda",dtype=torch.float32)
+        # self.max_level = 1
     def get_density(self, pts: torch.Tensor, timestamps: Optional[torch.Tensor] = None,scales: Optional[torch.Tensor] = None):
         """Computes and returns the densities."""
         # breakpoint()
-        pts = normalize_aabb(pts, self.aabb)
+        pts = normalize_aabb(pts, self.aabb) 
         timestamps = normalize_time(timestamps, self.duration) #[0,(d-1)/d] ->[-1,1]
         # print(timestamps)
         pts = torch.cat((pts, timestamps), dim=-1)  # [n_rays, n_samples, 4]

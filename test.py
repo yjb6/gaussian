@@ -149,6 +149,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
 
     for idx, view in enumerate(tqdm(views, desc="Rendering and metric progress")):
         # print(view.image_width,view.image_height)
+        # view = views[-1]
         renderingpkg = render(view, gaussians, pipeline, background, scaling_modifier=1.0, basicfunction=rbfbasefunction,  GRsetting=GRsetting, GRzer=GRzer) # C x H x W
         rendering = renderingpkg["render"]
         rendering = torch.clamp(rendering, 0, 1.0)

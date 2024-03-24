@@ -2467,7 +2467,7 @@ class GaussianModel:
         # if (~self.dynamatic_mask).sum()>0:
         #     print(opacity[~self.dynamatic_mask].max(),opacity[~self.dynamatic_mask].min())
         # print("sssum",(self.get_opacity[~self.dynamatic_mask]<0.005).sum())
-        return motion, rot,scale,opacity,shs
+        return motion, rot,scale,opacity,shs,None
 
     def set_bounds(self,xyz_max, xyz_min):
         print("set bounds")

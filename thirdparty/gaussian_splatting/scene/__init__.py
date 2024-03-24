@@ -129,22 +129,24 @@ class Scene:
                 self.test_cameras[resolution_scale] = cameraList_from_camInfosv2nogt(self.scene_info.test_cameras, resolution_scale, args)
 
         # print(loader)
-        if not self.args.use_loader:
-            for cam in self.train_cameras[resolution_scale]:
-                #不应该让这个东西去遍历train_cameras，代价太大，应该让他去遍历cam_infos
-                if cam.image_name not in raydict and cam.rayo is not None:
-                    # rays_o, rays_d = 1, cameradirect
-                    
-                    raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1).cuda() # 1 x 6 x H x W
-            for cam in self.test_cameras[resolution_scale]:
-                if cam.image_name not in raydict and cam.rayo is not None:
-                    raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1).cuda() # 1 x 6 x H x W
-            # print(len(raydict))
-            for cam in self.train_cameras[resolution_scale]:
-                cam.rays = raydict[cam.image_name] # should be direct ?
+        # if not self.args.use_loader:
+        for cam in self.train_cameras[resolution_scale]:
+            #不应该让这个东西去遍历train_cameras，代价太大，应该让他去遍历cam_infos
+            if cam.image_name not in raydict and cam.rayo is not None:
+                # rays_o, rays_d = 1, cameradirect
+                
+                raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
+                # .cuda() # 1 x 6 x H x W
+        for cam in self.test_cameras[resolution_scale]:
+            if cam.image_name not in raydict and cam.rayo is not None:
+                raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
+                # .cuda() # 1 x 6 x H x W
+        # print(len(raydict))
+        for cam in self.train_cameras[resolution_scale]:
+            cam.rays = raydict[cam.image_name] # should be direct ?
 
-            for cam in self.test_cameras[resolution_scale]:
-                cam.rays = raydict[cam.image_name] # should be direct ?
+        for cam in self.test_cameras[resolution_scale]:
+            cam.rays = raydict[cam.image_name] # should be direct ?
 
         if loader in ["immersivess", "immersivevalidss"]:# construct shared fisheyd remapping
             self.fisheyemapper = {}

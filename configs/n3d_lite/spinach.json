@@ -1,7 +1,7 @@
 {
     "resolution": 2,
-    "dataset": "beef",
-    "source_path": "../datasets/neural_3D/cut_roasted_beef/colmap_0/",
+    "dataset": "spinach",
+    "source_path": "../datasets/neural_3D/cook_spinach/colmap_0/",
     "model": "flow_mlp_hexplane_opacity_st_2",
     "scaling_lr": 0.003,
   
@@ -34,7 +34,7 @@
       "grid_dimensions": 2,
       "input_coordinate_dim": 4,
       "output_coordinate_dim": 16,
-      "resolution": [512, 512, 512, 256]
+      "resolution": [256, 256, 256, 256]
     },
     "multires":[1],
     "valloader": "colmapvalid",
@@ -48,8 +48,6 @@
     "lambda_dplanetv":0,
     "lambda_dtime_smooth":0,
     "lambda_dscale_reg":8e-6,
-    "lambda_dshs_reg":0,
-    "lambda_dmotion_reg":0,
 
     "iterations":30000,
     "dsh":true,
@@ -58,17 +56,7 @@
     "dscale":false,
     "enable_scale_sum":false,
     "scale_rot":true,
-
-    "scale_reg":true,
-    "shs_reg":false,
-    "motion_reg":false,
-
-    "onemlp":false,
-
-    "trbfc_lr":1e-4,
-    "sigmoid_tcenter":false,
-    "planemodel":"hexplane_mip"
-
+    "scale_reg":true
  
 
   

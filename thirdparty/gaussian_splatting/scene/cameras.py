@@ -109,40 +109,40 @@ class Camera(nn.Module):
 
         self.rayo = None
         self.rayd = None
-        # if rayd is not None:
-        #     projectinverse = self.projection_matrix.T.inverse()
-        #     camera2wold = self.world_view_transform.T.inverse()
-        #     pixgrid = create_meshgrid(self.image_height, self.image_width, normalized_coordinates=False, device="cpu")[0]
-        #     pixgrid = pixgrid
-        #     #.cuda()  # H,W,
+        if rayd is not None:
+            projectinverse = self.projection_matrix.T.inverse()
+            camera2wold = self.world_view_transform.T.inverse()
+            pixgrid = create_meshgrid(self.image_height, self.image_width, normalized_coordinates=False, device="cpu")[0]
+            pixgrid = pixgrid
+            #.cuda()  # H,W,
             
-        #     xindx = pixgrid[:,:,0] # x 
-        #     yindx = pixgrid[:,:,1] # y
+            xindx = pixgrid[:,:,0] # x 
+            yindx = pixgrid[:,:,1] # y
       
             
-        #     ndcy, ndcx = pix2ndc(yindx, self.image_height), pix2ndc(xindx, self.image_width)
-        #     ndcx = ndcx.unsqueeze(-1)
-        #     ndcy = ndcy.unsqueeze(-1)# * (-1.0)
+            ndcy, ndcx = pix2ndc(yindx, self.image_height), pix2ndc(xindx, self.image_width)
+            ndcx = ndcx.unsqueeze(-1)
+            ndcy = ndcy.unsqueeze(-1)# * (-1.0)
             
-        #     ndccamera = torch.cat((ndcx, ndcy,   torch.ones_like(ndcy) * (1.0) , torch.ones_like(ndcy)), 2) # N,4 
+            ndccamera = torch.cat((ndcx, ndcy,   torch.ones_like(ndcy) * (1.0) , torch.ones_like(ndcy)), 2) # N,4 
 
-        #     projected = ndccamera @ projectinverse.T #将NDC坐标系下的点变换到相机坐标系下
-        #     diretioninlocal = projected / projected[:,:,3:] #v 
+            projected = ndccamera @ projectinverse.T #将NDC坐标系下的点变换到相机坐标系下
+            diretioninlocal = projected / projected[:,:,3:] #v 
 
 
-        #     direction = diretioninlocal[:,:,:3] @ camera2wold[:3,:3].T #将相机坐标系下的点变换到世界坐标系下
-        #     rays_d = torch.nn.functional.normalize(direction, p=2.0, dim=-1)
+            direction = diretioninlocal[:,:,:3] @ camera2wold[:3,:3].T #将相机坐标系下的点变换到世界坐标系下
+            rays_d = torch.nn.functional.normalize(direction, p=2.0, dim=-1)
 
             
-        #     self.rayo = self.camera_center.expand(rays_d.shape).permute(2, 0, 1).unsqueeze(0)                                     #rayo.permute(2, 0, 1).unsqueeze(0)
-        #     self.rayd = rays_d.permute(2, 0, 1).unsqueeze(0)    
-        #     self.rays = torch.cat([self.rayo, self.rayd], dim=1)
-        #     #.cuda()
+            self.rayo = self.camera_center.expand(rays_d.shape).permute(2, 0, 1).unsqueeze(0)                                     #rayo.permute(2, 0, 1).unsqueeze(0)
+            self.rayd = rays_d.permute(2, 0, 1).unsqueeze(0)    
+            self.rays = torch.cat([self.rayo, self.rayd], dim=1)
+            #.cuda()
             
 
-        # else :
-        #     self.rayo = None
-        #     self.rayd = None
+        else :
+            self.rayo = None
+            self.rayd = None
     def __copy__(self):
         # 创建一个新对象，传递当前对象的属性给它
         new_obj = type(self).__new__(self.__class__)

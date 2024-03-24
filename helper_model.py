@@ -99,7 +99,25 @@ class RGBDecoderVRayShift(nn.Module):
         result = self.sigmoid(result)   
         return result 
     
+class myrgb(nn.Module):
+    #输入是feature（带时间的）和ray
+    def __init__(self, dim=9,dir_dim=6, outdim=3, bias=False):
+        super(myrgb, self).__init__()
+        
+        self.mlp1 = nn.Conv2d(dim, outdim, kernel_size=1, bias=bias)
+        self.mlp2 = nn.Conv2d(dim+dir_dim, outdim, kernel_size=1, bias=bias)
+        self.mlp3 = nn.Conv2d(6, outdim, kernel_size=1, bias=bias)
+        self.sigmoid = torch.nn.Sigmoid()
 
+    def forward(self, input, rays, t=None):
+        albeado = self.mlp1(input)
+        specualr = torch.cat([input, rays], dim=1)
+        specualr = self.mlp2(specualr)
+
+        finalfeature = torch.cat([albeado, specualr], dim=1)
+        result = self.mlp3(finalfeature)
+        result = self.sigmoid(result)   
+        return result
 
 def interpolate_point(pcd, N=4):
     #对点进行过滤，让其更稀疏。N越大过滤的越多。
@@ -364,12 +382,14 @@ def padding_point(pcd, N=4):
 
     return newpcd
 
-def getcolormodel(rgbfuntion):
+def getcolormodel(rgbfuntion,feature_dim=9,dir_out_dim=6):
     if rgbfuntion == "sandwich":
         rgbdecoder = Sandwich(9,3)
     
     elif rgbfuntion == "sandwichnoact":
         rgbdecoder = Sandwichnoact(9,3)
+    elif rgbfuntion =="myrgb":
+        rgbdecoder = myrgb(feature_dim,dir_out_dim)
     else :
         return None 
     return rgbdecoder

@@ -145,6 +145,12 @@ def getrenderpip(option="train_ours_full"):
         from diff_gaussian_rasterization_ch3 import GaussianRasterizationSettings 
         from diff_gaussian_rasterization_ch3 import GaussianRasterizer 
         return test_ours_bi_flow_alldeform, GaussianRasterizationSettings, GaussianRasterizer
+    elif  option == "train_ours_flow_mlp_opacity_color":
+        from thirdparty.gaussian_splatting.renderer import train_ours_flow_mlp_opacity_color 
+        from diff_gaussian_rasterization_ch9 import GaussianRasterizationSettings 
+        from diff_gaussian_rasterization_ch9 import GaussianRasterizer
+        partial_render = partial(train_ours_flow_mlp_opacity_color,GRzer=GaussianRasterizer,GRsetting=GaussianRasterizationSettings)
+        return partial_render
     else:
         raise NotImplementedError("Rennder {} not implemented".format(option))
     
@@ -203,10 +209,19 @@ def getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii,timestamp,iteratio
         scale_entropy = -(gaussians.get_trbfscale * torch.log(gaussians.get_trbfscale+1e-36) + (1-gaussians.get_trbfscale)*torch.log((1 -gaussians.get_trbfscale + 1e-36)))
         Ldscale_entropy=scale_entropy.mean(dim=0)
         loss = loss + opt.lambda_dscale_entropy * Ldscale_entropy
-    
+    # print(opt.lambda_dscale_reg)
     if opt.lambda_dscale_reg>0:
         Ldscale_reg = torch.linalg.vector_norm(gaussians.scale_residual , ord=2)
         loss = loss + opt.lambda_dscale_reg * Ldscale_reg
+
+    if opt.lambda_dshs_reg>0:
+        # print(gaussians.active_sh_degree)
+        Ldshs_reg = torch.linalg.matrix_norm(gaussians.shs_residual[:,:(gaussians.active_sh_degree+1)**2].reshape(gaussians._xyz.shape[0],-1) )
+        # print(Ldshs_reg)
+        loss = loss + opt.lambda_dshs_reg * Ldshs_reg
+    if opt.lambda_dmotion_reg>0:
+        Ldmotion_reg = torch.linalg.matrix_norm(gaussians.motion_residual)
+        loss = loss + opt.lambda_dmotion_reg * Ldmotion_reg
 
     if opt.lambda_dplanetv>0:
         Ldplanetv = gaussians.hexplane.planetv()
@@ -373,6 +388,7 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                 if (opt.desicnt < 0 or flag < opt.desicnt )and (opt.max_points_num<0 or gaussians.get_points_num < opt.max_points_num): #最多的densify次数,小于0表示这个参数没用.max_points_num表示最多的点数,小于-1表示参数没用
                     scene.recordpoints(iteration, "before densify")
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                    # size_threshold = 20
                     gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold)
                     flag+=1
                     scene.recordpoints(iteration, "after densify")
@@ -392,12 +408,13 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     gaussians.prune_points(prune_mask)
                     torch.cuda.empty_cache()
                     scene.recordpoints(iteration, "addionally prune_mask")
-            if iteration % opt.opacity_reset_interval == 0 :
+            # print( opt.opacity_reset_interval+1)
+            if iteration % (opt.opacity_reset_interval) == 0 :
                 print("reset opacity")
                 gaussians.reset_opacity()
 
         # else:
-        #     if iteration % 1000 == 500 :
+        #     if iteration % 50 == 0 :
         #         zmask = gaussians._xyz[:,2] < 4.5  # for stability  
         #         gaussians.prune_points(zmask) 
         #         torch.cuda.empty_cache()
@@ -468,17 +485,17 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
             if iteration == opt.coarse_opacity_reset_interval:
                 print("coarse reset opacity")
                 gaussians.reset_opacity()
-            if iteration == opt.pure_static:
+
+            if (iteration-opt.coarse_opacity_reset_interval) % opt.opacity_reset_interval == 0 :
+                print("reset opacity")
+                gaussians.reset_opacity()
+        if iteration == opt.pure_static:
                 print("pure static")
                 gaussians.pure_static_points()
                 # print("enable time downsample")
                 # gaussians.hexplane.convert_to_timedonwsample()
                 # gaussians.init_mlp_grd()
                 # gaussians.hexplane.enable_time_downsample = True
-            if (iteration-opt.coarse_opacity_reset_interval) % opt.opacity_reset_interval == 0 :
-                print("reset opacity")
-                gaussians.reset_opacity()
-
         # else:
         #     if iteration % 1000 == 500 :
         #         zmask = gaussians._xyz[:,2] < 4.5  # for stability  

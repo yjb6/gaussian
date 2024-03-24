@@ -63,8 +63,11 @@ class CameraDataset(Dataset):
     def __getitem__(self, index):
         viewpoint_cam = self.viewpoint_stack[index]
         if viewpoint_cam.meta_only:
-            
-            image_load = Image.open(viewpoint_cam.image_path).convert("RGB")
+            try:
+                image_load = Image.open(viewpoint_cam.image_path).convert("RGB")
+            except Exception:
+                print(viewpoint_cam.image_path)
+                raise Exception
             # with Image.open(viewpoint_cam.image_path) as image_load:
             #     im_data = np.array(image_load.convert("RGBA"))
             # norm_data = im_data / 255.0

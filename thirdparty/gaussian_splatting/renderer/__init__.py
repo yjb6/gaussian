@@ -1054,9 +1054,10 @@ def train_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_c
     # print(scales,rotations)
     # print(pc.timescale.is_leaf,"dd")
     # print(stage)
+    # print(viewpoint_camera.rays.shape)
     if stage == "dynamatic":
 
-        means3D,rotations,scales,opacity,shs = pc.get_deformation(viewpoint_camera.timestamp)
+        means3D,rotations,scales,opacity,shs,_ = pc.get_deformation(viewpoint_camera.timestamp)
         
         # opacity = pc.get_opacity_deform(viewpoint_camera.timestamp)
         # means3D.requires_grad = True
@@ -1155,7 +1156,7 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
     colors_precomp = None
     # means3D,rotations,scales,opacity = pc.get_deformation(viewpoint_camera.timestamp)
 
-    means3D,rotations,scales,opacity,shs = pc.get_deformation(viewpoint_camera.timestamp)
+    means3D,rotations,scales,opacity,shs,_ = pc.get_deformation(viewpoint_camera.timestamp)
     # print(scales.max(),scales.min())
     # print(pc.dynamatic)
     # print(pc.dynamatic.mean(dim=0),pc.dynamatic.amax())
@@ -1170,6 +1171,7 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
     print(intergral[intergral>0].min(),pc.get_intergral().max())
     # rotations = pc.get_rotation
     # scales = pc.get_scaling
+    print("scales",scales.max(),scales.min())
     # opacity = pointopacity
     # means3D = pc.get_xyz
     # print(means3D,rotations,scales,opacity)
@@ -1189,12 +1191,14 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
     # select_mask = (torch.logical_and(pc._xyz[:,0] >12,pc._xyz[:,2] >0)).squeeze()
     intergral = pc.get_intergral()
 
-    print(pc._trbf_scale.min())
-    print(pc._xyz.max(dim=0),pc._xyz.min(dim=0),pc._xyz.shape)
+    # print(pc._trbf_scale.min())
+    # print(pc._xyz.max(dim=0),pc._xyz.min(dim=0),pc._xyz.shape)
     # select_mask = (pc._xyz[:,2] >200).squeeze()
     # print("sssum",(pc.get_opacity[~pc.dynamatic_mask]<0.005).sum()) 
-    # select_mask = torch.logical_and(pc._trbf_scale >0.5,intergral<0.1).squeeze()    # select_mask = (torch.logical_and(pc.xyz[:,2] >45,pc._xyz[:,2] <175)).squeeze()
-    select_mask = pc.dynamatic_mask
+    # select_mask = torch.logical_and(pc._trbf_scale <0.5,intergral<0.1).squeeze()    # select_mask = (torch.logical_and(pc.xyz[:,2] >45,pc._xyz[:,2] <175)).squeeze()
+    # select_mask = (scales.max(dim=1).values > 2).squeeze()
+    select_mask = (intergral <0.5).squeeze()
+    # select_mask = (pc._trbf_scale <0.5).squeeze()
     # select_mask = ~select_mask
     print(intergral[select_mask].min(),intergral[select_mask].max())
     print(select_mask.sum())
@@ -1298,8 +1302,10 @@ def train_ours_flow_mlp_opacity_color(viewpoint_camera, pc : GaussianModel, pipe
     # print(pc.timescale.is_leaf,"dd")
     # print(stage)
     if stage == "dynamatic":
-
-        means3D,rotations,scales,opacity,colors_precomp = pc.get_deformation(viewpoint_camera.timestamp)
+        if pc.args.onemlp:
+            means3D,rotations,scales,opacity,shs,colors_precomp = pc.get_cas_deformation(viewpoint_camera.timestamp)
+        else:
+            means3D,rotations,scales,opacity,_,colors_precomp = pc.get_deformation(viewpoint_camera.timestamp)
         
         # opacity = pc.get_opacity_deform(viewpoint_camera.timestamp)
         # means3D.requires_grad = True
@@ -1321,7 +1327,7 @@ def train_ours_flow_mlp_opacity_color(viewpoint_camera, pc : GaussianModel, pipe
         rotations = rotations,
         cov3D_precomp = cov3D_precomp)
     # print(radii)
-    rendered_image = pc.rgbdecoder(rendered_image.unsqueeze(0), viewpoint_camera.rays, viewpoint_camera.timestamp) # 1 , 3 #在这里才把9维的feature逐像素的变成RGB color
+    rendered_image = pc.get_rgb(rendered_image.unsqueeze(0), viewpoint_camera.rays, viewpoint_camera.timestamp) # 1 , 3 #在这里才把9维的feature逐像素的变成RGB color
     rendered_image = rendered_image.squeeze(0)
     return {"render": rendered_image,
             "viewspace_points": screenspace_points,
