@@ -62,6 +62,6 @@
   "opacity_reset_interval":3000,
   "coarse_iteration":250000,
   "coarse_opacity_reset_interval":0,
-  "pure_static":120010,
+  "pure_static":8001,
   "enable_coarse2fine":false
 }

@@ -344,12 +344,22 @@ class GaussianModel:
         # print(self._trbf_center.grad)
         # print(self._trbf_center.grad.min(),self._trbf_center.grad.max())
         # print(self._trbf_center.median())
-        scales = torch.cat((self.get_scaling,self._trbf_scale.detach()/2),dim=1)
-        hexplane_feature = self.hexplane(self._xyz,self._trbf_center ,scales) #[N,D]
+        scales = torch.cat((self.get_scaling.detach(),self._trbf_scale.detach()/2),dim=1)
+        hexplane_feature = self.hexplane(self._xyz.detach(),self._trbf_center.detach() ,scales) #[N,D]
         trbf_scale = 1-self.opacity_mlp(hexplane_feature) #得到trbf_scale
         min_scale = self.args.min_interval/(self.duration)
         trbf_scale = (1-min_scale)*trbf_scale + min_scale #限制min_scale最小值
         self._trbf_scale = trbf_scale
+
+
+
+
+
+        
+        base_time_embbed = self.time_emb(torch.zeros(self._xyz.shape[0],1).cuda())
+        base_deform_feature = torch.cat((hexplane_feature.detach(),base_time_embbed.detach()),dim=1)
+        motion_residual = self.motion_mlp(base_deform_feature)
+        self.real_xyz = self._xyz + motion_residual
         print(self.hexplane.aabb)
         self.init_mlp_grd()
         if self.args.enable_scale_sum:
@@ -1518,6 +1528,7 @@ class GaussianModel:
         # print(self.max_radii2D.device)
         self.max_radii2D = self.max_radii2D[valid_points_mask]
         self._trbf_scale = self._trbf_scale[valid_points_mask]
+        self.real_xyz = self.real_xyz[valid_points_mask]
         if self.args.enable_scale_sum:
             self.scale_sum = self.scale_sum[valid_points_mask]
         # self._motion_fourier = optimizable_tensors["motion_fourier"]
@@ -1684,6 +1695,10 @@ class GaussianModel:
 
         add_trbf_scale = self._trbf_scale[selected_pts_mask].repeat(N,1)
         self._trbf_scale = torch.cat((self._trbf_scale,add_trbf_scale),dim=0)
+
+        new_real_xyz = self.get_real_xyz[selected_pts_mask].repeat(N,1)
+        self.real_xyz = torch.cat((self.real_xyz,new_real_xyz),dim=0)
+
         if self.args.enable_scale_sum:
             new_scale_sum = self.scale_sum[selected_pts_mask].repeat(N,1)/(0.8*N)
             self.scale_sum = torch.cat((self.scale_sum,new_scale_sum),dim=0)
@@ -1734,6 +1749,9 @@ class GaussianModel:
         add_trbf_scale = self._trbf_scale[selected_pts_mask]
         new_trbf_scale = torch.cat((self._trbf_scale,add_trbf_scale),dim=0)
         self._trbf_scale = new_trbf_scale
+
+        new_real_xyz = self.get_real_xyz[selected_pts_mask]
+        self.real_xyz = torch.cat((self.real_xyz,new_real_xyz),dim=0)
 
         if self.args.enable_scale_sum:
             new_scale_sum = self.scale_sum[selected_pts_mask]
@@ -1787,7 +1805,7 @@ class GaussianModel:
         # prune_mask = torch.logical_or(prune_mask,time_mask )
         prune_mask = torch.logical_or(prune_mask, intergral_mask)
 
-        z_mask = (self.get_xyz[:,2] < 4.5).squeeze()
+        z_mask = (self.get_real_xyz[:,2] < 4.5).squeeze()
         print("pure_z",z_mask.sum())
         prune_mask = torch.logical_or(prune_mask, z_mask)
         # small_t_center = (self.get_trbfcenter < 0).squeeze()
@@ -2111,7 +2129,9 @@ class GaussianModel:
             self.itercount += 1
             self.scale_sum += scales.detach()
     # def get_scale_res(self):
-        
+    @property
+    def get_real_xyz(self):
+        return self.real_xyz
     def get_deformation(self,timestamp,rays=None):
         # inv_intergral = 1/self.get_intergral()
         # print(inv_intergral.mean(),inv_intergral.max(),inv_intergral.min())
@@ -2150,6 +2170,7 @@ class GaussianModel:
         
         base_time_embbed = self.time_emb(torch.zeros_like(trbfdistanceoffset))
         base_deform_feature = torch.cat((hexplane_feature,base_time_embbed.detach()),dim=1)
+        self.real_xyz = self._xyz.detach() + self.motion_mlp(base_deform_feature).detach()
         if self.args.scale_reg:
             self.scale_residual = self.rot_mlp(base_deform_feature)[:,4:]
         if self.args.shs_reg:

@@ -209,8 +209,33 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
     
     if (densify == 1 or  densify == 2 or densify == 4) and not dataset.random_init: 
         #这个过滤对减少悬浮物非常的重要
-        zmask = gaussians._xyz[:,2] < 4.5  
+        # scales = torch.cat((gaussians.get_scaling.detach(),gaussians._trbf_scale.detach()/2),dim=1)
+        # # print(scales.shape)
+        # hexplane_feature = gaussians.hexplane(gaussians._xyz.detach(),gaussians.get_trbfcenter.detach(),scales.detach()) #[N,D]
+        # # print(hexplane_feature.shape)
+        # # print(hexplane_feature)
+        # trbf_scale = 1-gaussians.opacity_mlp(hexplane_feature) #得到trbf_scale
+        # min_scale = gaussians.args.min_interval/(gaussians.duration)
+        # trbf_scale = (1-min_scale)*trbf_scale + min_scale #限制min_scale最小值
+        # # print("t_scale",trbf_scale.mean(),trbf_scale.max(),trbf_scale.min())
+        # # self._trbf_scale = trbf_scale
 
+
+        # # print(trbfdistanceoffset.mean(),trbfdistanceoffset.max(),trbfdistanceoffset.min())
+        # # hexplane_feature = hexplane_feature * (1-trbfoutput)
+        # # hexplane_feature = hexplane_feature * trbfdistanceoffset.detach()
+
+        # # print(hexplane_feature)
+
+        
+        # base_time_embbed = gaussians.time_emb(torch.zeros(gaussians._xyz.shape[0],1).cuda())
+        # base_deform_feature = torch.cat((hexplane_feature,base_time_embbed.detach()),dim=1)
+        # motion_residual = gaussians.motion_mlp(base_deform_feature)
+        if hasattr(gaussians,"real_xyz"):
+
+            zmask = (gaussians.real_xyz)[:,2] < 4.5
+        else:
+            zmask = gaussians._xyz[:,2] < 4.5
         gaussians.prune_points(zmask) 
         print("After pure z<4.5",gaussians._xyz.shape[0])
         torch.cuda.empty_cache()
@@ -843,7 +868,7 @@ def training_report(wd_writer, test_loader,iteration, model_path, loss, l1_loss,
                 # for viewpoint in batch_data:
                     # print(viewpoint.timestamp)
                     # if iteration not in testing_iterations:
-                    #     viewpoint = validation_configs['cameras'][15]
+                    #     viewpoint = validation_configs['cameras'][280]
                     gt_image = viewpoint.original_image.float().cuda()
                     viewpoint = viewpoint.cuda()
                     render_pkg = renderFunc(viewpoint, scene.gaussians, *renderArgs,**renderKwargs )
@@ -946,7 +971,7 @@ if __name__ == "__main__":
     wandb_run = None
     if not args.no_wandb:
         tags = ['test']
-        wandb_run = wandb.init(project=args.dataset, name=args.exp_name,config=args,save_code=True,resume=False,tags=tags) #resume为true并没有什么好处
+        wandb_run = wandb.init(project=args.dataset, name=args.exp_name,config=args,save_code=True,resume=True,tags=tags,id="y3w3rtsi") #resume为true并没有什么好处
     try:
         train(lp_extract, op_extract, pp_extract, args.save_iterations,args.testing_iterations, args.debug_from, checkpoint=args.checkpoint,densify=args.densify, duration=args.duration, wandb_run=wandb_run,rgbfunction=args.rgbfunction, rdpip=args.rdpip)
     except Exception as e:
