@@ -162,6 +162,8 @@ class GaussianModel:
             self.shs_mlp = nn.Sequential(nn.Linear(out_dim+hexplane_outdim,self.H),nn.ReLU(),nn.Linear(self.H, 9))
 
             # self.rgbdecoder =nn.Sequential(nn.Linear(out_dim+hexplane_outdim+dir_out_dim,self.H),nn.ReLU(),nn.Linear(self.H,self.H),nn.ReLU(),nn.Linear(self.H, 3))
+        if self.args.dcolor:
+            self.shs_mlp = nn.Sequential(nn.Linear(out_dim+hexplane_outdim+dir_out_dim,self.H),nn.ReLU(),nn.Linear(self.H,self.H),nn.ReLU(),nn.Linear(self.H, 3))
 
         if self.args.dynamatic_mlp:
             self.dynamatic_mlp = nn.Sequential(nn.Linear(self.D+out_dim+hexplane_outdim,self.H),nn.ReLU(),nn.Linear(self.H,2),nn.Softmax(dim=1))
@@ -195,7 +197,7 @@ class GaussianModel:
         "motion_mlp",
         "rot_mlp",
         "opacity_mlp",
-        "shs_mlp" if self.args.dsh else None,
+        "shs_mlp",
         "scale_mlp" if self.args.dscale else None,
         "rgbdecoder" if self.args.rgbdecoder else None,
         "hexplane",
@@ -274,7 +276,7 @@ class GaussianModel:
             ("motion_mlp", self),
             ("rot_mlp", self),
             ("opacity_mlp", self),
-            ("shs_mlp" if self.args.dsh else None, self),
+            ("shs_mlp" , self),
             ("scale_mlp" if self.args.dscale else None, self),
             ("rgbdecoder" if self.args.rgbdecoder else None,self),
             ("hexplane",self),
@@ -503,6 +505,8 @@ class GaussianModel:
             fused_color = torch.tensor(np.asarray(pcd.colors)).float().cuda()
             features9channel = torch.cat((fused_color, fused_color, fused_color), dim=1)
             self._features_dc = nn.Parameter(features9channel.contiguous().requires_grad_(True))
+        elif self.args.dcolor:
+            self._features_dc = nn.Parameter(torch.tensor(np.asarray(pcd.colors)).unsqueeze(1).float().cuda().requires_grad_(True))
         else:
             self._features_dc = nn.Parameter(features[:,:,0:1].transpose(1, 2).contiguous().requires_grad_(True)) #[n,1,3]
         self._features_rest = nn.Parameter(features[:,:,1:].transpose(1, 2).contiguous().requires_grad_(True)) #[n,15,3]
@@ -640,7 +644,7 @@ class GaussianModel:
         self._scaling_grd += self._scaling.grad.clone()
         self._rotation_grd += self._rotation.grad.clone()
         self._opacity_grd += self._opacity.grad.clone()
-        if not self.args.rgbdecoder:
+        if not self.args.rgbdecoder and not self.args.dcolor:
             self._features_rest_grd += self._features_rest.grad.clone()
         x_nan = self._xyz.grad.isnan().sum()
         # print(x_nan)
@@ -2134,7 +2138,7 @@ class GaussianModel:
     @property
     def get_real_xyz(self):
         return self.real_xyz
-    def get_deformation(self,timestamp,rays=None):
+    def get_deformation(self,timestamp,cam_center=None,rays=None):
         # inv_intergral = 1/self.get_intergral()
         # print(inv_intergral.mean(),inv_intergral.max(),inv_intergral.min())
         ###充分结合hexplane和时间域上高斯的有点。将t_scale通过hexplane的特征学出来###
@@ -2150,7 +2154,9 @@ class GaussianModel:
 
         scales = torch.cat((self.get_scaling.detach(),self._trbf_scale.detach()/2),dim=1)
         # print(scales.shape)
-        hexplane_feature = self.hexplane(self._xyz.detach(),self.get_trbfcenter.detach(),scales.detach()) #[N,D]
+        hex_xyz = self.real_xyz if hasattr(self,"real_xyz") else self._xyz
+        # hex_xyz = self._xyz
+        hexplane_feature = self.hexplane(hex_xyz.detach(),self.get_trbfcenter.detach(),scales.detach()) #[N,D]
         # print(hexplane_feature.shape)
         # print(hexplane_feature)
         trbf_scale = 1-self.opacity_mlp(hexplane_feature) #得到trbf_scale
@@ -2276,7 +2282,7 @@ class GaussianModel:
         else:
             opacity = self.get_opacity
 
-        if not self.args.rgbdecoder:
+        if not self.args.rgbdecoder and not self.args.dcolor:
             if self.args.dsh:
                 shs_residual = self.shs_mlp(deform_feature).reshape(-1,16,3)
                 # print(shs_residual)
@@ -2288,12 +2294,24 @@ class GaussianModel:
                 features_rest = self._features_rest
                 shs =  torch.cat((features_dc, features_rest), dim=1)
             # print(self.hexplane.aabb)
-
-        if self.args.rgbdecoder:
+            rgb_feature = None
+        elif self.args.rgbdecoder and not self.args.dcolor:
             rgb_feature = self.shs_mlp(deform_feature)+self._features_dc
             shs=None
+
+        elif self.args.dcolor:
+            dir = motion - cam_center
+            dir_emb = self.dir_emb(dir / torch.norm(dir, dim=1, keepdim=True))
+            # print(dir_emb.shape,dir.shape)
+            color_deform_feature = torch.cat((deform_feature,dir_emb),dim=1)
+            # print(color_deform_feature.shape)
+            # print(self.shs_mlp)
+            # print(self._features_dc.shape)
+            rgb_feature = torch.sigmoid(self.shs_mlp(color_deform_feature)+self._features_dc.squeeze())
+            shs = None
         else:
-            rgb_feature = None
+            raise NotImplementedError
+        # print(shs,rgb_feature)
         return motion, rot,scale,opacity,shs,rgb_feature
     
     def get_cas_deformation(self,timestamp):
