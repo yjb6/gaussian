@@ -72,14 +72,15 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
 
     rbfbasefunction = trbfunction
 
-    scene = Scene(dataset, gaussians, duration=duration, loader=dataset.loader)
+    scene = Scene(dataset, gaussians, duration=duration, loader=dataset.loader,shuffle=False)
     gaussians.training_setup(opt)
-    print(checkpoint)
+    print("checkpoint:",checkpoint)
     if checkpoint:
         (model_params, first_iter) = torch.load(checkpoint)
-        gaussians.restore(model_params, opt)
-        if first_iter >= opt.static_iteration:#已经进行过转换了
+
+        if first_iter > opt.static_iteration:#已经进行过转换了
             gaussians.is_dynamatic = True
+        gaussians.restore(model_params, opt)
 
     currentxyz = gaussians._xyz 
     maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])# z wrong...
@@ -119,8 +120,15 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
 
     if opt.batch > 1 and opt.multiview:
         #针对多目数据集，记录同一时刻的相机列表
-        
+        print("kk")
         traincameralist = scene.getTrainCamInfos().copy() if dataset.use_loader else scene.getTrainCameras().copy()
+        
+        train_camname_dict = {}
+        for idx,cam in enumerate(traincameralist):
+            if cam.image_name not in train_camname_dict:
+                train_camname_dict[cam.image_name] = []
+            train_camname_dict[cam.image_name].append(idx)
+
         # traincamerainfolist = scene.getTrainCamInfos().copy()
         traincamdict = {}
         for i in range(duration): # 0 to 4, -> (0.0, to 0.8)
@@ -255,15 +263,19 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 flagems = 1 # start ems . 并且这个ems是只进行一次的
 
             iter_start.record()
-            # if iteration > opt.densify_until_iter:
-            #     use_intergral=False
-            # else:
-            #     use_intergral =True
-            use_intergral =True
+            if opt.use_intergral_afterdensify:
+                use_intergral =True
+            else:
+                if iteration > opt.densify_until_iter:
+                    use_intergral=False
+                else:
+                    use_intergral =True
+            # use_intergral =True
             if iteration > opt.densify_until_iter:
                 scale_intergral= False
             else:
                 scale_intergral = True
+            # scale_intergral = True
             gaussians.update_learning_rate(iteration,stage=stage,use_intergral=use_intergral,scale_intergral=scale_intergral)
             
             if (iteration - 1) == debug_from:
@@ -523,7 +535,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 #     print("t_center_grad",t_center_grad_means)
                 #     valid_mask =None
                 # wandb report
-                test_psnr,history_data = training_report(wandb_run,test_loader,iteration, scene.model_path, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, 
+                test_psnr,history_data = training_report(wandb_run,test_loader,iteration, scene.model_path,train_camname_dict, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, 
                 ( pipe, background) , loss_dict=loss_dict,history_data=history_data,stage=stage )
                 if (iteration in testing_iterations ):
                     if test_psnr >= best_psnr:
@@ -727,7 +739,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                     
                     gaussians.optimizer.zero_grad(set_to_none = True)
 
-def training_report(wd_writer, test_loader,iteration, model_path, loss, l1_loss, elapsed, testing_iterations, scene : Scene,renderFunc, renderArgs,history_data=None,loss_dict=None,**renderKwargs):
+def training_report(wd_writer, test_loader,iteration, model_path,train_camname_dict, loss, l1_loss, elapsed, testing_iterations, scene : Scene,renderFunc, renderArgs,history_data=None,loss_dict=None,**renderKwargs):
     if  wd_writer:
         wandb.log({
             # 'train_loss_patches/l1_loss': Ll1.item(),
@@ -803,20 +815,6 @@ def training_report(wd_writer, test_loader,iteration, model_path, loss, l1_loss,
             # print(loss_dict_wandb)
             wandb.log(loss_dict_wandb,step=iteration)
 
-            # if "Lrigid" in loss_dict:
-            #     wandb.log({'train_loss_patches/rigid_loss': loss_dict['Lrigid'].item()}, step=iteration)
-            # if "Ldepth" in loss_dict:
-            #     wandb.log({'train_loss_patches/depth_loss': loss_dict['Ldepth'].item()}, step=iteration)
-            # if "Ltv" in loss_dict:
-            #     wandb.log({'train_loss_patches/tv_loss': loss_dict['Ltv'].item()}, step=iteration)
-            # if "Lopa" in loss_dict:
-            #     wandb.log({'train_loss_patches/opa_loss': loss_dict['Lopa'].item()}, step=iteration)
-            # if "Lptsopa" in loss_dict:
-            #     wandb.log({'train_loss_patches/pts_opa_loss': loss_dict['Lptsopa'].item()}, step=iteration)
-            # if "Lsmooth" in loss_dict:
-            #     wandb.log({'train_loss_patches/smooth_loss': loss_dict['Lsmooth'].item()}, step=iteration)
-            # if "Llaplacian" in loss_dict:
-            #     wandb.log({'train_loss_patches/laplacian_loss': loss_dict['Llaplacian'].item()}, step=iteration)
 
     psnr_test_iter = 0.0
     # Report test and samples of training set
@@ -827,109 +825,110 @@ def training_report(wd_writer, test_loader,iteration, model_path, loss, l1_loss,
             history_data['psnr_perframe'] = []
             history_data["keys"] = []
 
-        validation_configs = {'name': 'test', 'cameras' :scene.getTestCameras()}
-        render_path = os.path.join(model_path, "test", "ours_{}".format(iteration), "renders")
-        os.makedirs(render_path, exist_ok=True)
-        # print(validation_configs)
-        # for config in validation_configs:
-        if validation_configs['cameras'] and len(validation_configs['cameras']) > 0:
+        validation_configs = [{'name': 'test', 'cameras' :scene.getTestCameras()},
+                            #   {"name":'train', 'cameras':[scene.getTrainCameras()[idx] for idx in train_camname_dict['cam10'][:4]]}
+                              ]
 
-            l1_test_list = []
-            ssim_test_list = []
-            msssim_test_list = []
-            psnr_test_list=[]
-            for idx,viewpoint in enumerate(tqdm(validation_configs['cameras'])):
-                # viewpoint = batch_data
-                # for viewpoint in batch_data:
-                    # print(viewpoint.timestamp)
-                    # if iteration not in testing_iterations:
-                    #     viewpoint = validation_configs['cameras'][15]
-                    gt_image = viewpoint.original_image.float().cuda()
-                    viewpoint = viewpoint.cuda()
-                    render_pkg = renderFunc(viewpoint, scene.gaussians, *renderArgs,**renderKwargs )
-                    image = torch.clamp(render_pkg["render"], 0.0, 1.0)                
-                    # depth = easy_cmap(render_pkg['depth'][0])
-                    # alpha = torch.clamp(render_pkg['alpha'], 0.0, 1.0).repeat(3,1,1)
+        for config in validation_configs:
+            render_path = os.path.join(model_path, config["name"], "ours_{}".format(iteration), "renders")
+            os.makedirs(render_path, exist_ok=True)
+            # print(config)
+            if config['cameras'] and len(config['cameras']) > 0:
+                if config["name"]=="test":
+                    l1_test_list = []
+                    ssim_test_list = []
+                    msssim_test_list = []
+                    psnr_test_list=[]
+                for idx,viewpoint in enumerate(tqdm(config['cameras'])):
+                    # viewpoint = batch_data
+                    # for viewpoint in batch_data:
+                        # print(viewpoint.timestamp)
+                        # if iteration not in testing_iterations:
+                        #     viewpoint = validation_configs['cameras'][280]
+                        gt_image = viewpoint.original_image.float().cuda()
+                        viewpoint = viewpoint.cuda()
+                        render_pkg = renderFunc(viewpoint, scene.gaussians, *renderArgs,**renderKwargs )
+                        image = torch.clamp(render_pkg["render"], 0.0, 1.0)                
+                        # depth = easy_cmap(render_pkg['depth'][0])
+                        # alpha = torch.clamp(render_pkg['alpha'], 0.0, 1.0).repeat(3,1,1)
 
-                    #这里还是不能代替test，并不能展示全部的图像,且上传非常慢。要么就不显示图像了
-                    # if wd_writer and (idx %1==0):
-                    #     grid = [gt_image, image, depth]
-                    #     grid = make_grid(grid, nrow=2)
-                    #     wandb.log({config['name'] + "_view_{}/gt_vs_render".format(viewpoint.image_name): [wandb.Image(grid, caption="Ground Truth vs. Rendered")]}, step=iteration)
+                        #这里还是不能代替test，并不能展示全部的图像,且上传非常慢。要么就不显示图像了
+                        # if wd_writer and (idx %1==0):
+                        #     grid = [gt_image, image, depth]
+                        #     grid = make_grid(grid, nrow=2)
+                        #     wandb.log({config['name'] + "_view_{}/gt_vs_render".format(viewpoint.image_name): [wandb.Image(grid, caption="Ground Truth vs. Rendered")]}, step=iteration)
 
-                        # tb_writer.add_images(config['name'] + "_view_{}/gt_vs_render".format(viewpoint.image_name), grid[None], global_step=iteration)
-                    # if config['name'] == 'test':
-                    # print(psnr(image, gt_image).mean())
-                    psnr_test_list.append(psnr(image, gt_image).mean().double().item())
-                    l1_test_list.append(l1_loss(image, gt_image).mean().double().item())
-                    ssim_test_list.append(ssim(image, gt_image).mean().double().item())
-                    msssim_test_list.append(msssim(image[None].cpu(), gt_image[None].cpu()))
-                    if idx%5==0:
-                        #每5张保存一次
+                            # tb_writer.add_images(config['name'] + "_view_{}/gt_vs_render".format(viewpoint.image_name), grid[None], global_step=iteration)
+                        # if config['name'] == 'test':
+                        # print(psnr(image, gt_image).mean())
+                        if idx%5==0:
+                            #每5张保存一次
+                            torchvision.utils.save_image(image, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
 
+                        if config["name"]=="test":
+                            psnr_test_list.append(psnr(image, gt_image).mean().double().item())
+                            l1_test_list.append(l1_loss(image, gt_image).mean().double().item())
+                            ssim_test_list.append(ssim(image, gt_image).mean().double().item())
+                            msssim_test_list.append(msssim(image[None].cpu(), gt_image[None].cpu()))
 
-                        torchvision.utils.save_image(image, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
-                    if iteration not in testing_iterations:
-                        break #这种情况只测试第一张图
-                    # print(psnr_test_list[-1])
-                    # break
-                    # print(psnr_test_list)
-            # wandb.log({"PSNR/Iteration": psnr_test_list}, step=iteration)
-            psnr_test =np.mean(psnr_test_list)
-            l1_test = np.mean(l1_test_list)
-            ssim_test = np.mean(ssim_test_list)
-            msssim_test = np.mean(msssim_test_list)
-            frame_idx_list =[i for i in range(len(psnr_test_list))]
-            history_data['psnr_perframe'].append(psnr_test_list)
-            history_data['keys'].append(iteration)
-            # print(history_data['psnr_perframe'])
-            # print(history_data['keys'])
-            print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, validation_configs['name'], l1_test, psnr_test))
-            if wd_writer and iteration in testing_iterations:
-                wandb.log({
-                    validation_configs['name'] + '/ l1_loss': l1_test,
-                    validation_configs['name'] + '/psnr': psnr_test,
-                    validation_configs['name'] + '/ssim': ssim_test,
-                    validation_configs['name'] + '/ msssim': msssim_test
-                }, step=iteration)
-                wandb.log(
-                    {
-                        validation_configs['name'] + '/psnr_perframe': wandb.plot.line_series(
-                            xs=frame_idx_list,
-                            ys=history_data['psnr_perframe'],
-                            keys=history_data['keys'],
-                            title="psnr_perframe",
-                            xname="frames",
+                        if iteration not in testing_iterations:
+                            break #这种情况只测试第一张图
+                if config["name"]=="test":
+                    psnr_test =np.mean(psnr_test_list)
+                    l1_test = np.mean(l1_test_list)
+                    ssim_test = np.mean(ssim_test_list)
+                    msssim_test = np.mean(msssim_test_list)
+                    frame_idx_list =[i for i in range(len(psnr_test_list))]
+                    history_data['psnr_perframe'].append(psnr_test_list)
+                    history_data['keys'].append(iteration)
+                    # print(history_data['psnr_perframe'])
+                    # print(history_data['keys'])
+                    print("\n[ITER {}] Evaluating {}: L1 {} PSNR {}".format(iteration, config['name'], l1_test, psnr_test))
+                    if wd_writer and iteration in testing_iterations:
+                        wandb.log({
+                            config['name'] + '/ l1_loss': l1_test,
+                            config['name'] + '/psnr': psnr_test,
+                            config['name'] + '/ssim': ssim_test,
+                            config['name'] + '/ msssim': msssim_test
+                        }, step=iteration)
+                        wandb.log(
+                            {
+                                config['name'] + '/psnr_perframe': wandb.plot.line_series(
+                                    xs=frame_idx_list,
+                                    ys=history_data['psnr_perframe'],
+                                    keys=history_data['keys'],
+                                    title="psnr_perframe",
+                                    xname="frames",
+                                )
+                            }
                         )
-                    }
-                )
-            ##write to json
-            full_dict ={}
-            per_view_dict = {}
-            full_dict.update({"SSIM": ssim_test.item(),
-                                "PSNR": psnr_test.item(),
-                                # "LPIPS": torch.tensor(lpipss).mean().item(),
-                                # "ssimsv2": torch.tensor(ssimsv2).mean().item(),
-                                # "LPIPSVGG": torch.tensor(lpipssvggs).mean().item(),
-                                # "times": torch.tensor(times).mean().item()
-                                })
-        
-            per_view_dict.update({"SSIM": {name: ssim for ssim, name in zip(ssim_test_list, frame_idx_list)},
-                                                                    "PSNR": {name: psnr for psnr, name in zip(psnr_test_list, frame_idx_list)},
-                                                                    # "LPIPS": {name: lp for lp, name in zip(torch.tensor(lpipss).tolist(), image_names)},
-                                                                    # "ssimsv2": {name: v for v, name in zip(torch.tensor(ssimsv2).tolist(), image_names)},
-                                                                    # "LPIPSVGG": {name: lpipssvgg for lpipssvgg, name in zip(torch.tensor(lpipssvggs).tolist(), image_names)},
-                                                                    })
-        
-            
-            
-            with open(model_path + "/" + str(iteration) + "_runtimeresults.json", 'w') as fp:
-                    json.dump(full_dict, fp, indent=True)
+                    ##write to json
+                    full_dict ={}
+                    per_view_dict = {}
+                    full_dict.update({"SSIM": ssim_test.item(),
+                                        "PSNR": psnr_test.item(),
+                                        # "LPIPS": torch.tensor(lpipss).mean().item(),
+                                        # "ssimsv2": torch.tensor(ssimsv2).mean().item(),
+                                        # "LPIPSVGG": torch.tensor(lpipssvggs).mean().item(),
+                                        # "times": torch.tensor(times).mean().item()
+                                        })
+                
+                    per_view_dict.update({"SSIM": {name: ssim for ssim, name in zip(ssim_test_list, frame_idx_list)},
+                                                                            "PSNR": {name: psnr for psnr, name in zip(psnr_test_list, frame_idx_list)},
+                                                                            # "LPIPS": {name: lp for lp, name in zip(torch.tensor(lpipss).tolist(), image_names)},
+                                                                            # "ssimsv2": {name: v for v, name in zip(torch.tensor(ssimsv2).tolist(), image_names)},
+                                                                            # "LPIPSVGG": {name: lpipssvgg for lpipssvgg, name in zip(torch.tensor(lpipssvggs).tolist(), image_names)},
+                                                                            })
+                
+                    
+                    
+                    with open(model_path + "/" + str(iteration) + "_runtimeresults.json", 'w') as fp:
+                            json.dump(full_dict, fp, indent=True)
 
-            with open(model_path + "/" + str(iteration) + "_runtimeperview.json", 'w') as fp:
-                json.dump(per_view_dict, fp, indent=True)
-            if validation_configs['name'] == 'test':
-                psnr_test_iter = psnr_test.item()
+                    with open(model_path + "/" + str(iteration) + "_runtimeperview.json", 'w') as fp:
+                        json.dump(per_view_dict, fp, indent=True)
+                    if config['name'] == 'test':
+                        psnr_test_iter = psnr_test.item()
                     
     torch.cuda.empty_cache()
     return psnr_test_iter,history_data

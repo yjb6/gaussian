@@ -1144,6 +1144,7 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
 
         frames = contents["frames"]
         for idx, frame in enumerate(frames):
+            # print(frame["file_path"] ,extension)
             cam_name = os.path.join(path, frame["file_path"] + extension)
 
             matrix = np.linalg.inv(np.array(frame["transform_matrix"]))
@@ -1167,14 +1168,20 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
             FovY = fovy 
             FovX = fovx
             
-            for j in range(20):
-                cam_infos.append(CameraInfo(uid=idx*20 + j, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
-                                image_path=image_path, image_name=image_name, width=image.size[0], height=image.size[1]))
+            timestamp =  frame.get('time', 0.0)
+            # for j in range(20):
+            # print(timestamp)
+            cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image,timestamp=timestamp,
+                                image_path=image_path, image_name=image_name, width=image.size[0], height=image.size[1],near=None,far=None,pose=None,hpdirecitons=None,cxr=0.0,cyr=0.0))
+            
+            # cam_infos.append(CameraInfo(uid=idx*20 + j, R=R, T=T, FovY=FovY, FovX=FovX, image=image,timestamp=timestamp,
+            #                     image_path=image_path, image_name=image_name, width=image.size[0], height=image.size[1],near=None,far=None,pose=None,hpdirecitons=None,cxr=0.0,cyr=0.0))
             
     return cam_infos
 
 def readNerfSyntheticInfo(path, white_background, eval, extension=".png", multiview=False):
     print("Reading Training Transforms")
+    # print(extension)
     train_cam_infos = readCamerasFromTransforms(path, "transforms_train.json", white_background, extension)
     print("Reading Test Transforms")
     test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension)
@@ -1194,9 +1201,11 @@ def readNerfSyntheticInfo(path, white_background, eval, extension=".png", multiv
         # We create random points inside the bounds of the synthetic Blender scenes
         xyz = np.random.random((num_pts, 3)) * 2.6 - 1.3
         shs = np.random.random((num_pts, 3)) / 255.0
-        pcd = BasicPointCloud(points=xyz, colors=SH2RGB(shs), normals=np.zeros((num_pts, 3)))
+        times = np.random.random((num_pts, 1))
+        xyzt =np.concatenate( (xyz, times), axis=1)
+        pcd = BasicPointCloud(points=xyz, colors=SH2RGB(shs), normals=np.zeros((num_pts, 3)),times=times)
 
-        storePly(ply_path, xyz, SH2RGB(shs) * 255)
+        storePly(ply_path, xyzt, SH2RGB(shs) * 255)
     try:
         pcd = fetchPly(ply_path)
     except:

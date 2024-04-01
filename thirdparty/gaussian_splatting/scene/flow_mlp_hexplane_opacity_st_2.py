@@ -344,12 +344,14 @@ class GaussianModel:
         # print(self._trbf_center.grad)
         # print(self._trbf_center.grad.min(),self._trbf_center.grad.max())
         # print(self._trbf_center.median())
-        scales = torch.cat((self.get_scaling,self._trbf_scale.detach()/2),dim=1)
-        hexplane_feature = self.hexplane(self._xyz,self._trbf_center ,scales) #[N,D]
-        trbf_scale = 1-self.opacity_mlp(hexplane_feature) #得到trbf_scale
-        min_scale = self.args.min_interval/(self.duration)
-        trbf_scale = (1-min_scale)*trbf_scale + min_scale #限制min_scale最小值
-        self._trbf_scale = trbf_scale
+        if self.is_dynamatic:
+            with torch.no_grad():
+                scales = torch.cat((self.get_scaling,self._trbf_scale.detach()/2),dim=1)
+                hexplane_feature = self.hexplane(self._xyz,self._trbf_center ,scales) #[N,D]
+                trbf_scale = 1-self.opacity_mlp(hexplane_feature) #得到trbf_scale
+                min_scale = self.args.min_interval/(self.duration)
+                trbf_scale = (1-min_scale)*trbf_scale + min_scale #限制min_scale最小值
+                self._trbf_scale = trbf_scale
         print(self.hexplane.aabb)
         self.init_mlp_grd()
         if self.args.enable_scale_sum:
@@ -820,7 +822,7 @@ class GaussianModel:
         self.trbf_center_scheduler_args = get_expon_lr_func(lr_init=training_args.trbfc_lr,
                                                     lr_final=training_args.trbfc_lr_final,
                                                     # lr_delay_mult=training_args.hexplane_lr_delay_mult,
-                                                    start_step = training_args.static_iteration,
+                                                    start_step = training_args.densify_until_iter,
                                                     max_steps=training_args.position_lr_max_steps)
         self.inv_intergral =torch.ones_like(self._opacity)
         print("move decoder to cuda")
@@ -1787,9 +1789,10 @@ class GaussianModel:
         # prune_mask = torch.logical_or(prune_mask,time_mask )
         prune_mask = torch.logical_or(prune_mask, intergral_mask)
 
-        z_mask = (self.get_xyz[:,2] < 4.5).squeeze()
-        print("pure_z",z_mask.sum())
-        prune_mask = torch.logical_or(prune_mask, z_mask)
+        # z_mask = (self.get_xyz[:,2] < 4.5).squeeze()
+        # print("pure_z",z_mask.sum())
+        # prune_mask = torch.logical_or(prune_mask, z_mask)#把这个移到外面去
+
         # small_t_center = (self.get_trbfcenter < 0).squeeze()
         # big_t_center = (self.get_trbfcenter > 1).squeeze()
         # prune_mask = torch.logical_or(prune_mask, torch.logical_or(small_t_center, big_t_center))
@@ -2156,6 +2159,9 @@ class GaussianModel:
             self.shs_residual = self.shs_mlp(base_deform_feature).reshape(-1,16,3)
         if self.args.motion_reg:
             self.motion_residual = self.motion_mlp(base_deform_feature)
+
+        with torch.no_grad():
+            self.real_xyz = self._xyz + self.motion_mlp(base_deform_feature)
 
         if self.args.onemlp:
             motion_residual  = self.motion_mlp(deform_feature)

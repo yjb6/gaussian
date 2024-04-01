@@ -389,6 +389,10 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     scene.recordpoints(iteration, "before densify")
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                     # size_threshold = 20
+                    z_mask = (gaussians.get_xyz[:,2] < 4.5).squeeze()
+                    print("pure_z",z_mask.sum())
+                    gaussians.prune_points(zmask)
+
                     gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold)
                     flag+=1
                     scene.recordpoints(iteration, "after densify")
@@ -413,11 +417,12 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                 print("reset opacity")
                 gaussians.reset_opacity()
 
-        # else:
-        #     if iteration % 50 == 0 :
-        #         zmask = gaussians._xyz[:,2] < 4.5  # for stability  
-        #         gaussians.prune_points(zmask) 
-        #         torch.cuda.empty_cache()
+        else:
+            if iteration % 500 == 1 :
+                zmask = gaussians.real_xyz[:,2] < 4.5  # for stability  
+                print("pure realxyz：",torch.sum(zmask).item())
+                gaussians.prune_points(zmask) 
+                torch.cuda.empty_cache()
         return flag
     
 
@@ -502,27 +507,15 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
         #         gaussians.prune_points(zmask) 
         #         torch.cuda.empty_cache()
         return flag
-    elif densify == 5: # n3d 
-        print(gaussians._trbf_scale.min())
-        if iteration == 8001:
-            print("enable time downsample")
-            gaussians.hexplane.enable_time_downsample = True
+    elif densify == 5: # dnerf 
         if iteration < opt.densify_until_iter :
-            #对旋转施加mask，暂时不知道有什么用
-            # if iteration ==  8001 : # 8001
-            #     omegamask = gaussians.zero_omegabymotion() #
-            #     gaussians.omegamask  = omegamask
-            #     scene.recordpoints(iteration, "seperate omega"+str(torch.sum(omegamask).item()))
-            # elif iteration > 8001: # 8001
-            #     freezweightsbymasknounsqueeze(gaussians, ["_omega"], gaussians.omegamask)
-            #     rotationmask = torch.logical_not(gaussians.omegamask)
-            #     freezweightsbymasknounsqueeze(gaussians, ["_rotation"], rotationmask)
-
 
             if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
                 if (opt.desicnt < 0 or flag < opt.desicnt )and (opt.max_points_num<0 or gaussians.get_points_num < opt.max_points_num): #最多的densify次数,小于0表示这个参数没用.max_points_num表示最多的点数,小于-1表示参数没用
                     scene.recordpoints(iteration, "before densify")
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+
+                     
                     gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold)
                     flag+=1
                     scene.recordpoints(iteration, "after densify")
@@ -542,15 +535,11 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     gaussians.prune_points(prune_mask)
                     torch.cuda.empty_cache()
                     scene.recordpoints(iteration, "addionally prune_mask")
-            if iteration % opt.opacity_reset_interval == 0 :
+            # print( opt.opacity_reset_interval+1)
+            if iteration % (opt.opacity_reset_interval) == 0 :
                 print("reset opacity")
                 gaussians.reset_opacity()
 
-        # else:
-        #     if iteration % 1000 == 500 :
-        #         zmask = gaussians._xyz[:,2] < 4.5  # for stability  
-        #         gaussians.prune_points(zmask) 
-        #         torch.cuda.empty_cache()
         return flag
 
 def logicalorlist(listoftensor):

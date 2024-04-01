@@ -34,8 +34,9 @@ class Scene:
         self.model_path = args.model_path
         self.loaded_iter = None
         self.gaussians = gaussians
+        self.white_background = args.white_background
         self.refmodelpath = None
-    
+        self.loader = loader
 
         if load_iteration:
             if load_iteration == -1:
@@ -66,6 +67,8 @@ class Scene:
             self.scene_info = sceneLoadTypeCallbacks["hypernerf"](args.source_path, args.images, args.eval, multiview, duration=duration)
         elif loader == "colmap4dgs" or loader == "colmap4dgsvalid":
             self.scene_info = sceneLoadTypeCallbacks["Colmap4dgs"](args.source_path, args.images, args.eval, multiview, duration=duration)
+        elif loader == "blender" or loader == "blendervalid":
+            self.scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.images, args.eval, multiview=multiview)
         else:
             assert False, "Could not recognize scene type!"
 
@@ -106,7 +109,7 @@ class Scene:
 
         for resolution_scale in resolution_scales:
             print("Loading Training Cameras")  
-            if loader in ["colmap4dgsvalid","colmapvalid", "colmapmv", "immersivevalid","technicolorvalid", "immersivevalidss", "imv2valid"]:         
+            if loader in ["colmap4dgsvalid","colmapvalid", "colmapmv", "immersivevalid","technicolorvalid", "immersivevalidss", "imv2valid","blendervalid"]:         
                 self.train_cameras[resolution_scale] = [] # no training data
 
 
@@ -120,7 +123,7 @@ class Scene:
             
             
             print("Loading Test Cameras")
-            if loader  in ["colmap4dgsvalid","colmapvalid", "immersivevalid", "colmap", "technicolorvalid", "technicolor", "imv2","imv2valid", "hypernerf","hypernerfvalid"]: # we need gt for metrics
+            if loader  in ["colmap4dgsvalid","colmapvalid", "immersivevalid", "colmap", "technicolorvalid", "technicolor", "imv2","imv2valid", "hypernerf","hypernerfvalid","blender"]: # we need gt for metrics
                 self.test_cameras[resolution_scale] = cameraList_from_camInfosv2(self.scene_info.test_cameras, resolution_scale, args)
             elif loader in ["immersivess", "immersivevalidss"]:
                 self.test_cameras[resolution_scale] = cameraList_from_camInfosv2(self.scene_info.test_cameras, resolution_scale, args, ss=True)
@@ -130,23 +133,24 @@ class Scene:
 
         # print(loader)
         # if not self.args.use_loader:
-        for cam in self.train_cameras[resolution_scale]:
-            #不应该让这个东西去遍历train_cameras，代价太大，应该让他去遍历cam_infos
-            if cam.image_name not in raydict and cam.rayo is not None:
-                # rays_o, rays_d = 1, cameradirect
-                
-                raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
-                # .cuda() # 1 x 6 x H x W
-        for cam in self.test_cameras[resolution_scale]:
-            if cam.image_name not in raydict and cam.rayo is not None:
-                raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
-                # .cuda() # 1 x 6 x H x W
-        # print(len(raydict))
-        for cam in self.train_cameras[resolution_scale]:
-            cam.rays = raydict[cam.image_name] # should be direct ?
+        if loader in ["colmapvalid","colmap"]:
+            for cam in self.train_cameras[resolution_scale]:
+                #不应该让这个东西去遍历train_cameras，代价太大，应该让他去遍历cam_infos
+                if cam.image_name not in raydict and cam.rayo is not None:
+                    # rays_o, rays_d = 1, cameradirect
+                    
+                    raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
+                    # .cuda() # 1 x 6 x H x W
+            for cam in self.test_cameras[resolution_scale]:
+                if cam.image_name not in raydict and cam.rayo is not None:
+                    raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
+                    # .cuda() # 1 x 6 x H x W
+            # print(len(raydict))
+            for cam in self.train_cameras[resolution_scale]:
+                cam.rays = raydict[cam.image_name] # should be direct ?
 
-        for cam in self.test_cameras[resolution_scale]:
-            cam.rays = raydict[cam.image_name] # should be direct ?
+            for cam in self.test_cameras[resolution_scale]:
+                cam.rays = raydict[cam.image_name] # should be direct ?
 
         if loader in ["immersivess", "immersivevalidss"]:# construct shared fisheyd remapping
             self.fisheyemapper = {}
@@ -165,7 +169,7 @@ class Scene:
             for cam in self.test_cameras[resolution_scale]:
                 cam.fisheyemapper = self.fisheyemapper[cam.image_name]
 
-       
+        # print("123")
         if self.loaded_iter :
             self.gaussians.load_ply(os.path.join(self.model_path,
                                                            "point_cloud",
@@ -192,13 +196,19 @@ class Scene:
 
     def getTrainCameras(self, scale=1.0):
         if self.args.use_loader:
-            return CameraDataset(self.train_cameras[scale].copy())#到这里才把image转成了torch，之前一直用的numpy
+            use_background = False
+            if self.loader in ["blender","blendervalid"]:
+                use_background = True
+            return CameraDataset(self.train_cameras[scale].copy(),self.white_background,use_background=use_background)#到这里才把image转成了torch，之前一直用的numpy
         else:
             return self.train_cameras[scale]
 
     def getTestCameras(self, scale=1.0):
         if self.args.use_loader:
-            return CameraDataset(self.test_cameras[scale].copy())
+            use_background = False
+            if self.loader in ["blender","blendervalid"]:
+                use_background = True
+            return CameraDataset(self.test_cameras[scale].copy(),self.white_background,use_background=use_background)
         return self.test_cameras[scale]
 
     def getTrainCamInfos(self):
