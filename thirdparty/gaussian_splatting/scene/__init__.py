@@ -68,7 +68,7 @@ class Scene:
         elif loader == "colmap4dgs" or loader == "colmap4dgsvalid":
             self.scene_info = sceneLoadTypeCallbacks["Colmap4dgs"](args.source_path, args.images, args.eval, multiview, duration=duration)
         elif loader == "blender" or loader == "blendervalid":
-            self.scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.images, args.eval, multiview=multiview)
+            self.scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.images, args.eval, multiview=multiview,duration=duration)
         else:
             assert False, "Could not recognize scene type!"
 
@@ -123,7 +123,7 @@ class Scene:
             
             
             print("Loading Test Cameras")
-            if loader  in ["colmap4dgsvalid","colmapvalid", "immersivevalid", "colmap", "technicolorvalid", "technicolor", "imv2","imv2valid", "hypernerf","hypernerfvalid","blender"]: # we need gt for metrics
+            if loader  in ["colmap4dgsvalid","colmapvalid", "immersivevalid", "colmap", "technicolorvalid", "technicolor", "imv2","imv2valid", "hypernerf","hypernerfvalid","blender","blendervalid"]: # we need gt for metrics
                 self.test_cameras[resolution_scale] = cameraList_from_camInfosv2(self.scene_info.test_cameras, resolution_scale, args)
             elif loader in ["immersivess", "immersivevalidss"]:
                 self.test_cameras[resolution_scale] = cameraList_from_camInfosv2(self.scene_info.test_cameras, resolution_scale, args, ss=True)

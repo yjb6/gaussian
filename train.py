@@ -270,12 +270,12 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                     use_intergral=False
                 else:
                     use_intergral =True
-            # use_intergral =True
+            use_intergral =False
             if iteration > opt.densify_until_iter:
                 scale_intergral= False
             else:
                 scale_intergral = True
-            # scale_intergral = True
+            scale_intergral = False
             gaussians.update_learning_rate(iteration,stage=stage,use_intergral=use_intergral,scale_intergral=scale_intergral)
             
             if (iteration - 1) == debug_from:

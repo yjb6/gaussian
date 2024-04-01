@@ -1135,7 +1135,7 @@ def readColmapSceneInfoTechnicolor(path, images, eval, llffhold=8, multiview=Fal
                            ply_path=totalply_path)
     return scene_info
 
-def readCamerasFromTransforms(path, transformsfile, white_background, extension=".png"):
+def readCamerasFromTransforms(path, transformsfile, white_background, extension=".png",duration=None):
     cam_infos = []
 
     with open(os.path.join(path, transformsfile)) as json_file:
@@ -1168,7 +1168,7 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
             FovY = fovy 
             FovX = fovx
             
-            timestamp =  frame.get('time', 0.0)
+            timestamp =  frame.get('time', 0.0) * (duration-1)/duration
             # for j in range(20):
             # print(timestamp)
             cam_infos.append(CameraInfo(uid=idx, R=R, T=T, FovY=FovY, FovX=FovX, image=image,timestamp=timestamp,
@@ -1179,12 +1179,12 @@ def readCamerasFromTransforms(path, transformsfile, white_background, extension=
             
     return cam_infos
 
-def readNerfSyntheticInfo(path, white_background, eval, extension=".png", multiview=False):
+def readNerfSyntheticInfo(path, white_background, eval, extension=".png", multiview=False,duration=None):
     print("Reading Training Transforms")
     # print(extension)
-    train_cam_infos = readCamerasFromTransforms(path, "transforms_train.json", white_background, extension)
+    train_cam_infos = readCamerasFromTransforms(path, "transforms_train.json", white_background, extension,duration)
     print("Reading Test Transforms")
-    test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension)
+    test_cam_infos = readCamerasFromTransforms(path, "transforms_test.json", white_background, extension,duration)
     
     if not eval:
         train_cam_infos.extend(test_cam_infos)

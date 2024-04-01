@@ -1754,6 +1754,9 @@ class GaussianModel:
         t_grads = self.t_gradient_accum / self.denom
         t_grads[t_grads.isnan()] = 0.0
         t_grads =None
+        print("tcenter:",self._trbf_center.min(),self._trbf_center.max(),self._trbf_center.mean())
+        print("tscale:",self._trbf_scale.min(),self._trbf_scale.max(),self._trbf_scale.mean())
+        print("intergral",self.get_intergral().min(),self.get_intergral().max(),self.get_intergral().mean())
         #在这里要把center的异常值给处理掉
         # time_mask = torch.logical_or(self.get_trbfcenter < 0, self.get_trbfcenter > 1).squeeze()
         # self.prune_points(time_mask)
@@ -2140,6 +2143,13 @@ class GaussianModel:
         # print("t_scale",trbf_scale.mean(),trbf_scale.max(),trbf_scale.min())
         self._trbf_scale = trbf_scale
 
+        # print("center",self.get_trbfcenter.min(),self.get_trbfcenter.max())
+        # print("scale",self.get_trbfscale.min(),self.get_trbfscale.max())
+        # intergral = self.get_intergral()
+        # print("intergral",intergral.mean(),intergral.max(),intergral.min())
+        # exit()
+        # print(min_scale)
+        # print(trbf_scale.mean(),trbf_scale.max(),trbf_scale.min())
         trbfdistanceoffset = timestamp  - self.get_trbfcenter
         trbfdistance =  trbfdistanceoffset / trbf_scale
         trbfoutput = self.get_trbfoutput(trbfdistance)
@@ -2291,7 +2301,8 @@ class GaussianModel:
         min_scale = self.args.min_interval/(self.duration)
         trbf_scale = (1-min_scale)*trbf_scale + min_scale #限制min_scale最小值
         self._trbf_scale = trbf_scale
-
+        print(min_scale)
+        print(trbf_scale.mean(),trbf_scale.max(),trbf_scale.min())
         trbfdistanceoffset = timestamp  - self._trbf_center
         trbfdistance =  trbfdistanceoffset / trbf_scale
         trbfoutput = self.get_trbfoutput(trbfdistance)
