@@ -1788,10 +1788,10 @@ class GaussianModel:
         # time_mask = torch.logical_or(self.get_trbfcenter < 0, self.get_trbfcenter > 1).squeeze()
         # prune_mask = torch.logical_or(prune_mask,time_mask )
         prune_mask = torch.logical_or(prune_mask, intergral_mask)
-
-        # z_mask = (self.get_xyz[:,2] < 4.5).squeeze()
-        # print("pure_z",z_mask.sum())
-        # prune_mask = torch.logical_or(prune_mask, z_mask)#把这个移到外面去
+        if self.args.loader == "colmap":
+            z_mask = (self.get_xyz[:,2] < 4.5).squeeze()
+            print("pure_z",z_mask.sum())
+            prune_mask = torch.logical_or(prune_mask, z_mask)#把这个移到外面去
 
         # small_t_center = (self.get_trbfcenter < 0).squeeze()
         # big_t_center = (self.get_trbfcenter > 1).squeeze()

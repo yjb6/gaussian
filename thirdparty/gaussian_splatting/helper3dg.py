@@ -39,7 +39,7 @@ def getparser():
     parser.add_argument('--debug_from', type=int, default=-2)
     parser.add_argument('--detect_anomaly', action='store_true', default=False)
     parser.add_argument("--save_iterations", nargs="+", type=int, default=[100,500,7_00,800,900,1_000,15_00,2_000,2500,3_000,3_500,4_000,5_000,6_000,6100,6300,6_500,7_000,7_500,8000,9_000, 10000, 12000,12_500,13_000,14_000, 15_000,17_000,18_000,20_000,23_000,25_000, 28_000,30_000,30_100,30_500,31_000])
-    parser.add_argument("--testing_iterations", nargs="+", type=int, default=[2_000,3_000,4_000,5_000,6_000,7_000,8_000,9_000,10_000,11_000,12000,12_500,13_000, 15_000,17_000,20_000,23_000,25_000, 28_000,30_000,30_500,31_000])
+    parser.add_argument("--testing_iterations", nargs="+", type=int, default=[5_000,6_000,7_000,8_000,9_000,10_000,11_000,12000,12_500,13_000, 15_000,17_000,20_000,23_000,25_000, 28_000,30_000,30_500,31_000])
 
     parser.add_argument("--test_iteration", default=-1, type=int)
     parser.add_argument("--reload_iteration", default=None, type=str)

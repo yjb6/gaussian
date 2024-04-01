@@ -389,9 +389,9 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                     scene.recordpoints(iteration, "before densify")
                     size_threshold = 20 if iteration > opt.opacity_reset_interval else None
                     # size_threshold = 20
-                    z_mask = (gaussians.get_xyz[:,2] < 4.5).squeeze()
-                    print("pure_z",z_mask.sum())
-                    gaussians.prune_points(zmask)
+                    # z_mask = (gaussians.get_xyz[:,2] < 4.5).squeeze()
+                    # print("pure_z",z_mask.sum())
+                    # gaussians.prune_points(z_mask)
 
                     gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold)
                     flag+=1
