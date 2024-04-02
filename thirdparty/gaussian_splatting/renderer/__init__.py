@@ -1197,31 +1197,31 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
     # print("sssum",(pc.get_opacity[~pc.dynamatic_mask]<0.005).sum()) 
     # select_mask = torch.logical_and(pc._trbf_scale <0.5,intergral<0.1).squeeze()    # select_mask = (torch.logical_and(pc.xyz[:,2] >45,pc._xyz[:,2] <175)).squeeze()
     # select_mask = (scales.max(dim=1).values > 2).squeeze()
-    select_mask = (intergral <0.5).squeeze()
-    # select_mask = (pc._trbf_scale <0.5).squeeze()
-    # select_mask = ~select_mask
-    print(intergral[select_mask].min(),intergral[select_mask].max())
-    print(select_mask.sum())
-    print("bounds",means3D.max(dim=0),means3D.min(dim=0),means3D.shape)
-    bounds = means3D[select_mask]
-    print(bounds.mean(dim=0),bounds.std(dim=0))
-    print(bounds.max(dim=0).values,bounds.min(dim=0).values)
+    # select_mask = (intergral <0.5).squeeze()
+    # # select_mask = (pc._trbf_scale <0.5).squeeze()
+    # # select_mask = ~select_mask
+    # print(intergral[select_mask].min(),intergral[select_mask].max())
+    # print(select_mask.sum())
+    # print("bounds",means3D.max(dim=0),means3D.min(dim=0),means3D.shape)
+    # bounds = means3D[select_mask]
+    # print(bounds.mean(dim=0),bounds.std(dim=0))
+    # print(bounds.max(dim=0).values,bounds.min(dim=0).values)
     # select_mask = torch.logical_and(torch.all(means3D<bounds.max(dim=0).values,dim=1),torch.all(means3D>bounds.min(dim=0).values,dim=1)).squeeze()
     # select_mask = ~pc.dynamatic_mask
     # select_mask = ~select_mask
     # select_mask = (pc._xyz[:,2]>4.5).squeeze()
-    means3D = means3D[select_mask]
-    # means3D = pc._xyz[select_mask]
+    # means3D = means3D[select_mask]
+    # # means3D = pc._xyz[select_mask]
 
-    print("now bounds",means3D.max(dim=0),means3D.min(dim=0))
-    # print(pc._trbf_center[select_mask].max(dim=0),pc._trbf_center[select_mask].min(dim=0),means3D.shape)
-    means2D = means2D[select_mask]
-    shs = shs[select_mask]
-    print(opacity.shape)
-    opacity = opacity[select_mask]
-    print(opacity.shape)
-    scales = scales[select_mask]
-    rotations = rotations[select_mask]
+    # print("now bounds",means3D.max(dim=0),means3D.min(dim=0))
+    # # print(pc._trbf_center[select_mask].max(dim=0),pc._trbf_center[select_mask].min(dim=0),means3D.shape)
+    # means2D = means2D[select_mask]
+    # shs = shs[select_mask]
+    # print(opacity.shape)
+    # opacity = opacity[select_mask]
+    # print(opacity.shape)
+    # scales = scales[select_mask]
+    # rotations = rotations[select_mask]
         # means3D = pc._xyz
     rendered_image, radii,depth = rasterizer(
         means3D = means3D,
