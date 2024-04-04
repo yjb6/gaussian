@@ -73,7 +73,8 @@
   "planemodel":"hexplane_mip",
 
   "use_intergral_afterdensify":false,
-  "pw":false
+  "pw":false,
+  "static_iteration":1000
 
 
 

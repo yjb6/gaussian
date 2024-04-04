@@ -895,12 +895,14 @@ def readColmapSceneInfoHyperNerf(path, images, eval, llffhold=8, multiview=False
     # video_cam_infos = copy.deepcopy(test_cam_infos)
     # video_cam_infos.split="video"
 
-
+    print("maxtime",max_time)
+    # ply_path = os.path.join(path,"points3D_downsample5k.ply")
     ply_path = os.path.join(path,"points3D_downsample2.ply")
+    # ply_path = os.path.join(path,"fused.ply")
     pcd = fetchPly3D(ply_path)
     xyz = np.array(pcd.points)
     rgb = np.array(pcd.colors)
-    timeply_path = os.path.join(path, "points3D_" + str(max_time) + ".ply")
+    timeply_path = os.path.join(path, "points3D_" + str(max_time+1) + ".ply")
     # pcd = pcd._replace(points=xyz)
     if not os.path.exists(timeply_path):
         #加入时间信息

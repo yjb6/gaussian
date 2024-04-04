@@ -211,8 +211,11 @@ def getloss(opt, Ll1, ssim, image, gt_image, gaussians, radii,timestamp,iteratio
         loss = loss + opt.lambda_dscale_entropy * Ldscale_entropy
     # print(opt.lambda_dscale_reg)
     if opt.lambda_dscale_reg>0:
-        Ldscale_reg = torch.linalg.vector_norm(gaussians.scale_residual , ord=2)
-        loss = loss + opt.lambda_dscale_reg * Ldscale_reg
+        if gaussians.is_dynamatic:
+            Ldscale_reg = torch.linalg.vector_norm(gaussians.scale_residual , ord=2)
+            loss = loss + opt.lambda_dscale_reg * Ldscale_reg
+        else:
+            Ldscale_reg = torch.tensor([0])
 
     if opt.lambda_dshs_reg>0:
         # print(gaussians.active_sh_degree)
@@ -541,7 +544,59 @@ def controlgaussians(opt, gaussians, densify, iteration, scene,  visibility_filt
                 gaussians.reset_opacity()
 
         return flag
+    elif densify == 6: # hyper
+        if iteration < opt.densify_until_iter :
+            #对旋转施加mask，暂时不知道有什么用
+            # if iteration ==  8001 : # 8001
+            #     omegamask = gaussians.zero_omegabymotion() #
+            #     gaussians.omegamask  = omegamask
+            #     scene.recordpoints(iteration, "seperate omega"+str(torch.sum(omegamask).item()))
+            # elif iteration > 8001: # 8001
+            #     freezweightsbymasknounsqueeze(gaussians, ["_omega"], gaussians.omegamask)
+            #     rotationmask = torch.logical_not(gaussians.omegamask)
+            #     freezweightsbymasknounsqueeze(gaussians, ["_rotation"], rotationmask)
 
+
+            if iteration > opt.densify_from_iter and iteration % opt.densification_interval == 0:
+                if (opt.desicnt < 0 or flag < opt.desicnt )and (opt.max_points_num<0 or gaussians.get_points_num < opt.max_points_num): #最多的densify次数,小于0表示这个参数没用.max_points_num表示最多的点数,小于-1表示参数没用
+                    scene.recordpoints(iteration, "before densify")
+                    size_threshold = 20 if iteration > opt.opacity_reset_interval else None
+                    # size_threshold = 20
+                    # z_mask = (gaussians.get_xyz[:,2] < 4.5).squeeze()
+                    # print("pure_z",z_mask.sum())
+                    # gaussians.prune_points(z_mask)
+
+                    gaussians.densify_pruneclone(opt.densify_grad_threshold, opt.opthr, scene.cameras_extent, size_threshold)
+                    flag+=1
+                    scene.recordpoints(iteration, "after densify")
+                else:
+                    prune_mask =  (gaussians.get_opacity < opt.opthr).squeeze()
+                    
+                    if hasattr(gaussians,"valid_mask") and gaussians.valid_mask is not None:
+                        valid_mask = ~prune_mask
+                        gaussians.valid_mask = torch.logical_and(valid_mask,gaussians.valid_mask)
+
+                        #将左右两边为false的点去掉
+                        # right_shift=torch.cat((torch.zeros((self.valid_mask.shape[0],1),device="cuda",dtype=bool),self.valid_mask[:,:-1]),dim=1)
+                        # left_shift=torch.cat((self.valid_mask[:,1:],torch.zeros((self.valid_mask.shape[0],1),device="cuda",dtype=bool)),dim=1)
+                        # self.valid_mask = torch.logical_and(self.valid_mask,torch.logical_or(right_shift,left_shift)) #左右两边有一个为true，就将这个点保留
+                        prune_mask = torch.all(~gaussians.valid_mask,dim=1) #如果全为false，则为true #[N]
+                    
+                    gaussians.prune_points(prune_mask)
+                    torch.cuda.empty_cache()
+                    scene.recordpoints(iteration, "addionally prune_mask")
+            # print( opt.opacity_reset_interval+1)
+            if iteration % (opt.opacity_reset_interval) == 0 :
+                print("reset opacity")
+                gaussians.reset_opacity()
+
+        # else:
+        #     if iteration % 500 == 1 :
+        #         zmask = gaussians.real_xyz[:,2] < 4.5  # for stability  
+        #         print("pure realxyz：",torch.sum(zmask).item())
+        #         gaussians.prune_points(zmask) 
+        #         torch.cuda.empty_cache()
+        return flag
 def logicalorlist(listoftensor):
     mask = None 
     for idx, ele in enumerate(listoftensor):

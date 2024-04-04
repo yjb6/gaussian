@@ -96,12 +96,13 @@ class Load_hyper_data(Dataset):
 
         self.all_cam = [meta_json[i]['camera_id'] for i in self.all_img]
         self.all_time = [meta_json[i]['warp_id'] for i in self.all_img]
+        self.max_time = max(self.all_time)
+        self.min_time = min(self.all_time)
         max_time = max(self.all_time)+1
         self.all_time = [meta_json[i]['warp_id']/max_time for i in self.all_img]
         self.selected_time = set(self.all_time)
         self.ratio = ratio
-        self.max_time = max(self.all_time)
-        self.min_time = min(self.all_time)
+
         self.i_video = [i for i in range(len(self.all_img))]
         self.i_video.sort()
         self.all_cam_params = []

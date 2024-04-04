@@ -82,6 +82,8 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
             gaussians.is_dynamatic = True
         gaussians.restore(model_params, opt)
 
+
+
     currentxyz = gaussians._xyz 
     maxx, maxy, maxz = torch.amax(currentxyz[:,0]), torch.amax(currentxyz[:,1]), torch.amax(currentxyz[:,2])# z wrong...
     minx, miny, minz = torch.amin(currentxyz[:,0]), torch.amin(currentxyz[:,1]), torch.amin(currentxyz[:,2])
@@ -164,7 +166,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 #         print(data)
 
             else:
-                loader = DataLoader(traincam_dataset, batch_size=opt.batch,shuffle=True,num_workers=16,collate_fn=list)
+                loader = DataLoader(traincam_dataset, batch_size=opt.batch,shuffle=True,num_workers=8,collate_fn=list)
                 test_loader = DataLoader(scene.getTestCameras(), batch_size=1,shuffle=False,num_workers=16,collate_fn=lambda x: x)
                 # while True:
                 #     for data in loader:
@@ -179,6 +181,9 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
     if hasattr(gaussians,"ts") and gaussians.ts is None :
         H,W = scene.getTrainCameras()[0].image_height, scene.getTrainCameras()[0].image_width 
         gaussians.ts = torch.ones(1,1,H,W).cuda()
+
+
+
 
     scene.recordpoints(0, "start training")
 
@@ -263,19 +268,22 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 flagems = 1 # start ems . 并且这个ems是只进行一次的
 
             iter_start.record()
-            if opt.use_intergral_afterdensify:
-                use_intergral =True
+            if opt.all_no_intergral:
+                use_intergral = False
+                scale_intergral = False
             else:
-                if iteration > opt.densify_until_iter:
-                    use_intergral=False
-                else:
+                if opt.use_intergral_afterdensify:
                     use_intergral =True
-            use_intergral =False
-            if iteration > opt.densify_until_iter:
-                scale_intergral= False
-            else:
-                scale_intergral = True
-            scale_intergral = False
+                else:
+                    if iteration > opt.densify_until_iter:
+                        use_intergral=False
+                    else:
+                        use_intergral =True
+                if iteration > opt.densify_until_iter:
+                    scale_intergral= False
+                else:
+                    scale_intergral = True
+            # scale_intergral = False
             gaussians.update_learning_rate(iteration,stage=stage,use_intergral=use_intergral,scale_intergral=scale_intergral)
             
             if (iteration - 1) == debug_from:

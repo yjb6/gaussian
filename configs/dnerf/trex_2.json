@@ -1,24 +1,26 @@
 {
   "resolution": 2,
-  "dataset": "flame_salmon",
-  "source_path": "../datasets/neural_3D/flame_salmon_1/colmap_0/",
+  "dataset": "trex",
+  "source_path": "../datasets/dnerf/trex/",
   "model": "flow_mlp_hexplane_opacity_st_2",
   "scaling_lr": 0.003,
 
-  "preprocesspoints": 3,
+  "preprocesspoints": 0,
   "desicnt": -1,
 
   "test_iteration": 20001,
-  "densify": 2,
-  "duration": 300,
+  "densify": 5,
+  "duration": 200,
   "rdpip": "train_ours_flow_mlp_opacity",
   "rgbfunction": "sandwich",
-  "loader": "colmap",
-  "densify_until_iter": 11000,
+  "loader": "blender",
+  "densify_until_iter": 15000,
   "emsstart": 40001,
   "use_weight_decay": true,
   "densify_from_iter" :500,
   "densification_interval" : 100,
+
+  "opacity_reset_interval":2000,
 
   "deform_feature_lr":1.6e-3,
   "deform_feature_lr_final":1.6e-3,
@@ -34,15 +36,15 @@
     "grid_dimensions": 2,
     "input_coordinate_dim": 4,
     "output_coordinate_dim": 32,
-    "resolution": [1024, 1024, 1024, 256]
+    "resolution": [64, 64, 64, 128]
   },
   "multires":[1],
-  "valloader": "colmapvalid",
+  "valloader": "blendervalid",
   "use_loader":true,
   "batch":4,
   "sametime_batch":false,
 
-  "lambda_dtstd" :1e-4,
+  "lambda_dtstd" :0,
   "lambda_dl1_opacity" : 0,
   "lambda_dscale_entropy":0,
   "lambda_dplanetv":0,
@@ -54,7 +56,8 @@
   "iterations":30000,
   "dsh":true,
   "use_shs":true,
-  "min_intergral":0.0016,
+  "min_intergral":0.0025,
+  "min_interval":0.5,
   "dscale":false,
   "enable_scale_sum":false,
   "scale_rot":true,
@@ -65,11 +68,13 @@
 
   "onemlp":false,
 
-  "trbfc_lr":1e-4,
+  "trbfc_lr":1e-6,
   "sigmoid_tcenter":false,
   "planemodel":"hexplane_mip",
 
-  "use_intergral_afterdensify":true
+  "use_intergral_afterdensify":false,
+  "pw":false,
+  "static_iteration":1000
 
 
 

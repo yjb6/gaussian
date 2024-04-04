@@ -1157,6 +1157,7 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
     # means3D,rotations,scales,opacity = pc.get_deformation(viewpoint_camera.timestamp)
 
     means3D,rotations,scales,opacity,shs,_ = pc.get_deformation(viewpoint_camera.timestamp)
+    print("mean3d",means3D.max(dim=0),means3D.min(dim=0))
     # print(scales.max(),scales.min())
     # print(pc.dynamatic)
     # print(pc.dynamatic.mean(dim=0),pc.dynamatic.amax())

@@ -582,10 +582,10 @@ class GaussianModel:
     def static2dynamatic(self):
         self.is_dynamatic = True
         #确定bounding box
-        max = self._xyz.max(dim=0).values.detach().cpu().numpy()
-        min = self._xyz.min(dim=0).values.detach().cpu().numpy()
-        print(max,min)
-        self.set_bounds(max,min)
+        # max = self._xyz.max(dim=0).values.detach().cpu().numpy()
+        # min = self._xyz.min(dim=0).values.detach().cpu().numpy()
+        # print(max,min)
+        # self.set_bounds(max,min)
     def cache_gradient(self,stage):
         '''把grad都传给grd'''
         if stage == "dynamatic":#只有dynamtic时，才会有下面这三个的梯度
@@ -807,22 +807,26 @@ class GaussianModel:
         self.mlp_scheduler_args = get_expon_lr_func(lr_init=training_args.mlp_lr,
                                                     lr_final=training_args.mlp_lr_final,
                                                     # lr_delay_mult=training_args.mlp_lr_delay_mult,
-                                                    start_step = training_args.static_iteration,
+                                                    # start_step = training_args.static_iteration,
+                                                    start_step = -1,
                                                     max_steps=training_args.position_lr_max_steps)
         self.deform_feature_scheduler_args = get_expon_lr_func(lr_init=training_args.deform_feature_lr,
                                                     lr_final=training_args.deform_feature_lr_final,
                                                     # lr_delay_mult=training_args.deform_feature_lr_delay_mult,
-                                                    start_step = training_args.static_iteration,
+                                                    # start_step = training_args.static_iteration,
+                                                    start_step = -1,
                                                     max_steps=training_args.position_lr_max_steps)
         self.hexplane_scheduler_args = get_expon_lr_func(lr_init=training_args.hexplane_lr,
                                                     lr_final=training_args.hexplane_lr_final,
                                                     # lr_delay_mult=training_args.hexplane_lr_delay_mult,
-                                                    start_step = training_args.static_iteration,
+                                                    # start_step = training_args.static_iteration,
+                                                    start_step = -1,
                                                     max_steps=training_args.position_lr_max_steps)  
         self.trbf_center_scheduler_args = get_expon_lr_func(lr_init=training_args.trbfc_lr,
                                                     lr_final=training_args.trbfc_lr_final,
                                                     # lr_delay_mult=training_args.hexplane_lr_delay_mult,
-                                                    start_step = training_args.densify_until_iter,
+                                                    # start_step = training_args.static_iteration,
+                                                    start_step = -1,
                                                     max_steps=training_args.position_lr_max_steps)
         self.inv_intergral =torch.ones_like(self._opacity)
         print("move decoder to cuda")
@@ -2119,6 +2123,8 @@ class GaussianModel:
     # def get_scale_res(self):
         
     def get_deformation(self,timestamp,rays=None):
+        # print(timestamp)
+
         # inv_intergral = 1/self.get_intergral()
         # print(inv_intergral.mean(),inv_intergral.max(),inv_intergral.min())
         ###充分结合hexplane和时间域上高斯的有点。将t_scale通过hexplane的特征学出来###

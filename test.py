@@ -174,7 +174,9 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         gt = view.original_image[0:3, :, :].cuda().float()
         ssims.append(ssim(rendering.unsqueeze(0),gt.unsqueeze(0))) 
 
-        psnrs.append(psnr(rendering.unsqueeze(0), gt.unsqueeze(0)))
+        psnrs.append(psnr(rendering, gt).mean().double().item())
+        # print(psnrs)
+        # exit()
         lpipss.append(lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type='alex')) #
         lpipssvggs.append( lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type='vgg'))
 

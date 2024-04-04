@@ -206,7 +206,7 @@ class OptimizationParams(ParamGroup):
         self.max_points_num = -1
         
         self.use_intergral_afterdensify = True
-
+        self.all_no_intergral = False
         #hexplane config:
         self.plane_tv_weight = 0.0001
         self.time_smoothness_weight = 0.01
