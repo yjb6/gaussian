@@ -64,9 +64,9 @@ warnings.filterwarnings("ignore")
 def render_set(model_path, name, iteration, views, gaussians, pipeline, background, rbfbasefunction, rdpip,frame_duration,args):
     print(rdpip)
     # render, GRsetting, GRzer = getrenderpip(rdpip) 
-    render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders_xyz")
+    render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders_test")
     gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
-    depth_path = os.path.join(model_path, name, "ours_{}".format(iteration), "depth")
+    depth_path = os.path.join(model_path, name, "ours_{}".format(iteration), "depth_test")
     traj_path = os.path.join(model_path, name, "ours_{}".format(iteration), "traj")
     rot_path = os.path.join(model_path, name, "ours_{}".format(iteration), "rot")
 
@@ -149,13 +149,17 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
 
     for idx, view in enumerate(tqdm(views, desc="Rendering and metric progress")):
         # print(view.image_width,view.image_height)
-        # view = views[-1]
+        idx=250
+        view = views[250]
         renderingpkg = render(view, gaussians, pipeline, background, scaling_modifier=1.0, basicfunction=rbfbasefunction,  GRsetting=GRsetting, GRzer=GRzer) # C x H x W
         rendering = renderingpkg["render"]
         rendering = torch.clamp(rendering, 0, 1.0)
         if "depth" in renderingpkg:
             depth = renderingpkg["depth"]
             depth_np = renderingpkg["depth"].squeeze().detach().cpu().numpy()
+            print(depth_np.max(),depth_np.shape)
+            depth_np = depth_np/depth_np.max()
+            depth_np = (1/(1+np.exp(-20*depth_np ))-1/2)*2
             plt.imsave(os.path.join(depth_path, '{0:05d}'.format(idx) + ".png"), depth_np, cmap='viridis')
 
         if args.traj  and idx>0 and idx % args.traj_interval==0:
@@ -170,35 +174,34 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         # print(depth.max(), depth.min())
         # depth = depth/(depth.max() - depth.min())
         
+        if name != "val":
+            gt = view.original_image[0:3, :, :].cuda().float()
+        # ssims.append(ssim(rendering.unsqueeze(0),gt.unsqueeze(0))) 
 
-        gt = view.original_image[0:3, :, :].cuda().float()
-        ssims.append(ssim(rendering.unsqueeze(0),gt.unsqueeze(0))) 
+        # psnrs.append(psnr(rendering, gt).mean().double().item())
 
-        psnrs.append(psnr(rendering, gt).mean().double().item())
-        # print(psnrs)
-        # exit()
-        lpipss.append(lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type='alex')) #
-        lpipssvggs.append( lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type='vgg'))
+        # lpipss.append(lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type='alex')) #
+        # lpipssvggs.append( lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type='vgg'))
 
-        rendernumpy = rendering.permute(1,2,0).detach().cpu().numpy()
-        gtnumpy = gt.permute(1,2,0).detach().cpu().numpy()
-        # print(rendernumpy.shape)
-        # print(gtnumpy.shape)
-        ssimv2 =  sk_ssim(rendernumpy, gtnumpy, multichannel=True, data_range=1.0,channel_axis=-1)
-        ssimsv2.append(ssimv2)
+        # rendernumpy = rendering.permute(1,2,0).detach().cpu().numpy()
+        # gtnumpy = gt.permute(1,2,0).detach().cpu().numpy()
+
+        # ssimv2 =  sk_ssim(rendernumpy, gtnumpy, multichannel=True, data_range=1.0,channel_axis=-1)
+        # ssimsv2.append(ssimv2)
 
 
         # print(depth,depth.shape)
         # print(gt)
         torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
-        torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
+        # torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
         # torchvision.utils.save_image(depth, os.path.join(depth_path, '{0:05d}'.format(idx) + ".png"))
         image_names.append('{0:05d}'.format(idx) + ".png")
 
     
-
+        # exit()
     for idx, view in enumerate(tqdm(views, desc="release gt images cuda memory for timing")):
         view.original_image = None #.detach()  
+        # view.rays - None
         torch.cuda.empty_cache()
 
     # start timing
@@ -211,6 +214,7 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
                 times.append(duration)
 
     print(np.mean(np.array(times)))
+    # exit()
     if len(views) > 0:
         full_dict[model_path][iteration].update({"SSIM": torch.tensor(ssims).mean().item(),
                                         "PSNR": torch.tensor(psnrs).mean().item(),
@@ -227,10 +231,10 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         
             
             
-        with open(model_path + "/" + str(iteration) + "_runtimeresults.json", 'w') as fp:
+        with open(model_path + "/" + str(iteration) + "_runtimeresults_.json", 'w') as fp:
             json.dump(full_dict, fp, indent=True)
 
-        with open(model_path + "/" + str(iteration) + "_runtimeperview.json", 'w') as fp:
+        with open(model_path + "/" + str(iteration) + "_runtimeperview_white.json", 'w') as fp:
             json.dump(per_view_dict, fp, indent=True)
 
 def visualize_traj(gaussians,cam, image, depth,frame_idx,duration, save_path,type="motion",traj_length=20,traj_frac =25):
@@ -315,11 +319,13 @@ def run_test(dataset : ModelParams, ckpt, pipeline : PipelineParams, skip_train 
         (model_params, iteration) = torch.load(ckpt)
         print("load at",iteration)
         gaussians.restore(model_params, None)
+        gaussians.get_deformfeature()
         if hasattr(gaussians,"ts") and  gaussians.ts is None :
             cameraslit = scene.getTestCameras()
             H,W = cameraslit[0].image_height, cameraslit[0].image_width
             gaussians.ts = torch.ones(1,1,H,W).cuda()
-
+        # if not skip_test and not multiview:            
+        #     render_set(dataset.model_path, "val", iteration, scene.getValCameras(), gaussians, pipeline, background, rbfbasefunction, rdpip,frame_duration=duration,args=args)
         if not skip_test and not multiview:            
             render_set(dataset.model_path, "test", iteration, scene.getTestCameras(), gaussians, pipeline, background, rbfbasefunction, rdpip,frame_duration=duration,args=args)
         if multiview:

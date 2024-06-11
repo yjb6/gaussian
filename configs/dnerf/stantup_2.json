@@ -53,7 +53,7 @@
   "lambda_dshs_reg":0,
   "lambda_dmotion_reg":0,
 
-  "iterations":30000,
+  "iterations":20000,
   "dsh":true,
   "use_shs":true,
   "min_intergral":0.0025,
@@ -70,7 +70,7 @@
 
   "trbfc_lr":1e-6,
   "sigmoid_tcenter":false,
-  "planemodel":"hexplane",
+  "planemodel":"hexplane_mip_allscale",
 
   "use_intergral_afterdensify":false,
   "pw":false,

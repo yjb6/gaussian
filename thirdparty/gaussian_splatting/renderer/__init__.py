@@ -1016,7 +1016,7 @@ def train_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_c
     # Set up rasterization configuration
     tanfovx = math.tan(viewpoint_camera.FoVx * 0.5)
     tanfovy = math.tan(viewpoint_camera.FoVy * 0.5)
-
+    # print("123")
     raster_settings = GRsetting(
         image_height=int(viewpoint_camera.image_height),
         image_width=int(viewpoint_camera.image_width),
@@ -1106,8 +1106,8 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
  
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means.这个东西只是用来记录梯度的，自己的值为0
     screenspace_points = torch.zeros_like(pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
-    print(torch.cuda.is_available())
-    startime = time.time()
+    # print(torch.cuda.is_available())
+    # startime = time.time()
     torch.cuda.synchronize()
 
     # pointtimes = torch.ones((pc.get_xyz.shape[0],1), dtype=pc.get_xyz.dtype, requires_grad=False, device="cuda") + 0 # 
@@ -1128,51 +1128,59 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
         bg=bg_color,
         scale_modifier=scaling_modifier,
         viewmatrix=viewpoint_camera.world_view_transform.cuda(),
+        # viewmatrix=viewpoint_camera.world_view_transform,
         projmatrix=viewpoint_camera.full_proj_transform.cuda(),
+        # projmatrix=viewpoint_camera.full_proj_transform,
         sh_degree=pc.active_sh_degree,
         campos=viewpoint_camera.camera_center.cuda(),
+        # campos=viewpoint_camera.camera_center,
         prefiltered=False
         # ,debug=pipe.debug
         )
 
     rasterizer = GRzer(raster_settings=raster_settings)
 
-    print("kk")
+    # print("kk")
 
-    means3D = pc.get_xyz
+    # means3D = pc.get_xyz
     means2D = screenspace_points
-    pointopacity = pc.get_opacity
+    # pointopacity = pc.get_opacity
 
 
     
-    opacity = pointopacity   # - 0.5
-    # pc.trbfoutput = trbfoutput
+    # opacity = pointopacity   # - 0.5
+    # # pc.trbfoutput = trbfoutput
 
     cov3D_precomp = None
 
-    scales = pc.get_scaling
-    shs = pc.get_features
-    print(scales.mean(dim=0))
+    # scales = pc.get_scaling
+    # shs = pc.get_features
+    # # print(scales.mean(dim=0))
     colors_precomp = None
     # means3D,rotations,scales,opacity = pc.get_deformation(viewpoint_camera.timestamp)
-
+    startime = time.time()
     means3D,rotations,scales,opacity,shs,_ = pc.get_deformation(viewpoint_camera.timestamp)
-    print("mean3d",means3D.max(dim=0),means3D.min(dim=0))
+
+    # means3D,rotations,scales,opacity,shs,_ = pc.get_deformation_eval(viewpoint_camera.timestamp)
+    # print("mean3d",means3D.max(dim=0),means3D.min(dim=0))
+    # print("tcenter",pc._trbf_center.mean())
     # print(scales.max(),scales.min())
     # print(pc.dynamatic)
     # print(pc.dynamatic.mean(dim=0),pc.dynamatic.amax())
     # colors_precomp = pc.get_trbfscale.detach().expand(-1,3) 
     # colors_precomp = pc.get_trbfcenter.detach().expand(-1,3) 
     # colors_precomp = pc.get_opacity.detach().expand(-1,3) 
+    # intergral = pc.get_intergral()
+    # colors_precomp = intergral.detach().expand(-1,3)
     # shs=None
-    print(pc._trbf_scale[pc._trbf_scale<3.3e-3].shape)
-    intergral = pc.get_intergral()
-    print(intergral[pc._trbf_scale<3.3e-3])
-    print(pc._trbf_center[intergral == 0],pc._trbf_scale[intergral == 0],pc._trbf_scale[intergral == 0].shape)
-    print(intergral[intergral>0].min(),pc.get_intergral().max())
-    # rotations = pc.get_rotation
-    # scales = pc.get_scaling
-    print("scales",scales.max(),scales.min())
+    # print(pc._trbf_scale[pc._trbf_scale<3.3e-3].shape)
+
+    # print(intergral[pc._trbf_scale<3.3e-3])
+    # print(pc._trbf_center[intergral == 0],pc._trbf_scale[intergral == 0],pc._trbf_scale[intergral == 0].shape)
+    # print(intergral[intergral>0].min(),pc.get_intergral().max())
+    # # rotations = pc.get_rotation
+    # # scales = pc.get_scaling
+    # print("scales",scales.max(),scales.min())
     # opacity = pointopacity
     # means3D = pc.get_xyz
     # print(means3D,rotations,scales,opacity)
@@ -1190,17 +1198,17 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
     # means3D = pc._xyz
     # print(pc._xyz,means3D)
     # select_mask = (torch.logical_and(pc._xyz[:,0] >12,pc._xyz[:,2] >0)).squeeze()
-    intergral = pc.get_intergral()
+    # intergral = pc.get_intergral()
 
     # print(pc._trbf_scale.min())
     # print(pc._xyz.max(dim=0),pc._xyz.min(dim=0),pc._xyz.shape)
     # select_mask = (pc._xyz[:,2] >200).squeeze()
     # print("sssum",(pc.get_opacity[~pc.dynamatic_mask]<0.005).sum()) 
     # select_mask = torch.logical_and(pc._trbf_scale <0.5,intergral<0.1).squeeze()    # select_mask = (torch.logical_and(pc.xyz[:,2] >45,pc._xyz[:,2] <175)).squeeze()
-    # select_mask = (scales.max(dim=1).values > 2).squeeze()
+    # select_mask = (scales.max(dim=1).values < 0.7).squeeze()
     # select_mask = (intergral <0.5).squeeze()
-    # # select_mask = (pc._trbf_scale <0.5).squeeze()
-    # # select_mask = ~select_mask
+    # select_mask = (pc._trbf_scale <0.5).squeeze()
+    # select_mask = ~select_mask
     # print(intergral[select_mask].min(),intergral[select_mask].max())
     # print(select_mask.sum())
     # print("bounds",means3D.max(dim=0),means3D.min(dim=0),means3D.shape)
@@ -1210,7 +1218,7 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
     # select_mask = torch.logical_and(torch.all(means3D<bounds.max(dim=0).values,dim=1),torch.all(means3D>bounds.min(dim=0).values,dim=1)).squeeze()
     # select_mask = ~pc.dynamatic_mask
     # select_mask = ~select_mask
-    # select_mask = (pc._xyz[:,2]>4.5).squeeze()
+    # select_mask = (means3D[:,2]<20).squeeze()
     # means3D = means3D[select_mask]
     # # means3D = pc._xyz[select_mask]
 
@@ -1233,7 +1241,7 @@ def test_ours_flow_mlp_opacity(viewpoint_camera, pc : GaussianModel, pipe, bg_co
         scales = scales,
         rotations = rotations,
         cov3D_precomp = cov3D_precomp)
-    print(torch.cuda.is_available())
+    # print(torch.cuda.is_available())
 
     torch.cuda.synchronize()
     duration = time.time() - startime

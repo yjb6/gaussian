@@ -47,6 +47,7 @@ class Scene:
 
         self.train_cameras = {}
         self.test_cameras = {}
+        self.val_cameras = {}
         raydict = {}
 
 
@@ -68,7 +69,7 @@ class Scene:
         elif loader == "colmap4dgs" or loader == "colmap4dgsvalid":
             self.scene_info = sceneLoadTypeCallbacks["Colmap4dgs"](args.source_path, args.images, args.eval, multiview, duration=duration)
         elif loader == "blender" or loader == "blendervalid":
-            self.scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.images, args.eval, multiview=multiview,duration=duration)
+            self.scene_info = sceneLoadTypeCallbacks["Blender"](args.source_path, args.white_background, args.eval, multiview=multiview,duration=duration)
         else:
             assert False, "Could not recognize scene type!"
 
@@ -130,27 +131,29 @@ class Scene:
             elif loader in ["colmapmv"]:                 # only for multi view
 
                 self.test_cameras[resolution_scale] = cameraList_from_camInfosv2nogt(self.scene_info.test_cameras, resolution_scale, args)
-
+            print("Loading Val Cameras")
+            if loader in ["colmapvalid"]:
+                self.val_cameras[resolution_scale] = cameraList_from_camInfosv2nogt(self.scene_info.val_cameras, resolution_scale, args)
         # print(loader)
         # if not self.args.use_loader:
-        if loader in ["colmapvalid","colmap"]:
-            for cam in self.train_cameras[resolution_scale]:
-                #不应该让这个东西去遍历train_cameras，代价太大，应该让他去遍历cam_infos
-                if cam.image_name not in raydict and cam.rayo is not None:
-                    # rays_o, rays_d = 1, cameradirect
+        # if loader in ["colmapvalid","colmap"]:
+        #     for cam in self.train_cameras[resolution_scale]:
+        #         #不应该让这个东西去遍历train_cameras，代价太大，应该让他去遍历cam_infos
+        #         if cam.image_name not in raydict and cam.rayo is not None:
+        #             # rays_o, rays_d = 1, cameradirect
                     
-                    raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
-                    # .cuda() # 1 x 6 x H x W
-            for cam in self.test_cameras[resolution_scale]:
-                if cam.image_name not in raydict and cam.rayo is not None:
-                    raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
-                    # .cuda() # 1 x 6 x H x W
-            # print(len(raydict))
-            for cam in self.train_cameras[resolution_scale]:
-                cam.rays = raydict[cam.image_name] # should be direct ?
+        #             raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
+        #             # .cuda() # 1 x 6 x H x W
+        #     for cam in self.test_cameras[resolution_scale]:
+        #         if cam.image_name not in raydict and cam.rayo is not None:
+        #             raydict[cam.image_name] = torch.cat([cam.rayo, cam.rayd], dim=1)
+        #             # .cuda() # 1 x 6 x H x W
+        #     # print(len(raydict))
+        #     for cam in self.train_cameras[resolution_scale]:
+        #         cam.rays = raydict[cam.image_name] # should be direct ?
 
-            for cam in self.test_cameras[resolution_scale]:
-                cam.rays = raydict[cam.image_name] # should be direct ?
+        #     for cam in self.test_cameras[resolution_scale]:
+        #         cam.rays = raydict[cam.image_name] # should be direct ?
 
         if loader in ["immersivess", "immersivevalidss"]:# construct shared fisheyd remapping
             self.fisheyemapper = {}
@@ -210,6 +213,14 @@ class Scene:
                 use_background = True
             return CameraDataset(self.test_cameras[scale].copy(),self.white_background,use_background=use_background)
         return self.test_cameras[scale]
+    
+    def getValCameras(self, scale=1.0):
+        if self.args.use_loader:
+            use_background = False
+            if self.loader in ["blender","blendervalid"]:
+                use_background = True
+            return CameraDataset(self.val_cameras[scale].copy(),self.white_background,use_background=use_background)
+        return self.val_cameras[scale]
 
     def getTrainCamInfos(self):
         # if self.args.use_loader:

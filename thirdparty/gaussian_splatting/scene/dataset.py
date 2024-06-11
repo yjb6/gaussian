@@ -63,7 +63,7 @@ class CameraDataset(Dataset):
         
     def __getitem__(self, index):
         viewpoint_cam = self.viewpoint_stack[index]
-        if viewpoint_cam.meta_only:
+        if viewpoint_cam.meta_only and viewpoint_cam.image_path:
             try:
                 image_load = Image.open(viewpoint_cam.image_path).convert("RGBA")
             except Exception:

@@ -40,7 +40,7 @@
   },
   "multires":[1],
   "valloader": "blendervalid",
-  "use_loader":true,
+  "use_loader":false,
   "batch":4,
   "sametime_batch":false,
 

@@ -28,6 +28,7 @@ from scene.hexplane_1 import HexPlaneField_1
 from scene.triplane import TriPlaneField
 from scene.hexplane_mip import HexPlaneField_mip
 from scene.hexplane_t import HexPlaneField_t
+from scene.hexplane_mip_allscale import HexPlaneField_mip_allscale
 import matplotlib.pyplot as plt
 
 class GaussianModel:
@@ -125,6 +126,8 @@ class GaussianModel:
             self.hexplane = HexPlaneField_mip(args.bounds, args.kplanes_config, args.multires)
         elif self.args.planemodel == "hexplane_t":
             self.hexplane = HexPlaneField_t(args.bounds, args.kplanes_config, args.multires)
+        elif self.args.planemodel == "hexplane_mip_allscale":
+            self.hexplane = HexPlaneField_mip_allscale(args.bounds, args.kplanes_config, args.multires)
         else:
             raise NotImplementedError
         hexplane_outdim = self.hexplane.feat_dim
@@ -840,12 +843,13 @@ class GaussianModel:
             valid_mask = (intergral>self.min_intergral).squeeze()
             prune_mask = ~valid_mask
             self.prune_points(prune_mask)
-            print("intergral pure",prune_mask.sum(),"after pure:",self._xyz.shape[0])
+            # print("intergral pure",prune_mask.sum(),"after pure:",self._xyz.shape[0])
             intergral =intergral[valid_mask]
             self.inv_intergral = 1/intergral
             # self.inv_intergral = torch.ones_like(self.inv_intergral)
             # self.inv_intergral = torch.sqrt(self.inv_intergral/self.inv_intergral.min())
             self.inv_intergral = self.inv_intergral/self.inv_intergral.min()
+            self.inv_intergral_fordensify = self.inv_intergral
             if not use_intergral:
                 self.inv_intergral = torch.ones_like(self._opacity)
             # print(self.inv_intergral.mean(),self.inv_intergral.max(),self.inv_intergral.min())
@@ -858,6 +862,8 @@ class GaussianModel:
             # print(self._trbf_scale[self.inv_intergral==torch.inf])
         if stage == "static":
             self.inv_intergral = torch.ones_like(self._opacity)
+            self.inv_intergral_fordensify = self.inv_intergral
+
         for param_group in self.optimizer.param_groups:
             if param_group["name"] == "xyz":
                 lr = self.xyz_scheduler_args(iteration)
@@ -1750,17 +1756,17 @@ class GaussianModel:
         spatial_scale = self.get_real_scale()  
         # big_points_ws = spatial_scale.max(dim=1).values > 0.1 * extent
         # print("indexs",torch.nonzero(big_points_ws))
-        print("scales",self.get_scaling.max(dim=0).values,self.get_scaling.mean(dim=0))
+        # print("scales",self.get_scaling.max(dim=0).values,self.get_scaling.mean(dim=0))
         #print("before", torch.amax(self.get_scaling))
         grads = self.xyz_gradient_accum / self.denom
         grads[grads.isnan()] = 0.0
-        grads = grads*self.inv_intergral
+        grads = grads*self.inv_intergral_fordensify
         t_grads = self.t_gradient_accum / self.denom
         t_grads[t_grads.isnan()] = 0.0
         t_grads =None
-        print("tcenter:",self._trbf_center.min(),self._trbf_center.max(),self._trbf_center.mean())
-        print("tscale:",self._trbf_scale.min(),self._trbf_scale.max(),self._trbf_scale.mean())
-        print("intergral",self.get_intergral().min(),self.get_intergral().max(),self.get_intergral().mean())
+        # print("tcenter:",self._trbf_center.min(),self._trbf_center.max(),self._trbf_center.mean())
+        # print("tscale:",self._trbf_scale.min(),self._trbf_scale.max(),self._trbf_scale.mean())
+        # print("intergral",self.get_intergral().min(),self.get_intergral().max(),self.get_intergral().mean())
         #在这里要把center的异常值给处理掉
         # time_mask = torch.logical_or(self.get_trbfcenter < 0, self.get_trbfcenter > 1).squeeze()
         # self.prune_points(time_mask)
@@ -1768,36 +1774,36 @@ class GaussianModel:
 
         # print(torch.min(self._trbf_center),torch.max(self._trbf_center))
         # print("small scale",(self.get_trbfscale < 1/self.duration/2).sum())
-        with torch.no_grad():
-            print(torch.mean(grads), torch.amax(grads), torch.amin(grads))
-            if t_grads is not None:
-                print(torch.mean(t_grads), torch.amax(t_grads), torch.amin(t_grads))
-            print(torch.mean(self.get_opacity), torch.amax(self.get_opacity), torch.amin(self.get_opacity))
-        print("befre clone", self._xyz.shape[0])
+        # with torch.no_grad():
+            # print(torch.mean(grads), torch.amax(grads), torch.amin(grads))
+            # if t_grads is not None:
+                # print(torch.mean(t_grads), torch.amax(t_grads), torch.amin(t_grads))
+            # print(torch.mean(self.get_opacity), torch.amax(self.get_opacity), torch.amin(self.get_opacity))
+        # print("befre clone", self._xyz.shape[0])
         self.densify_and_clone(grads, max_grad, extent, t_grads)
-        print("after clone", self._xyz.shape[0])
+        # print("after clone", self._xyz.shape[0])
         # print(torch.min(self._trbf_center),torch.max(self._trbf_center))
 
         self.densify_and_splitv2(grads, max_grad, extent, 2, t_grads)
-        print("after split", self._xyz.shape[0])
+        # print("after split", self._xyz.shape[0])
         # print(torch.min(self._trbf_center),torch.max(self._trbf_center))
 
         # self.time_split(grads,max_grad)
         # print("after time split",self._xyz.shape[0])
 
         prune_mask = (self.get_opacity < min_opacity).squeeze()
-        print("opacity pure",prune_mask.sum())
+        # print("opacity pure",prune_mask.sum())
         # small_t_scale = (self.get_trbfscale < 1/self.duration/2).squeeze()
         # big_t_scale = (self.get_trbfscale > 1).squeeze()
         # print("small scale",(self.get_trbfscale < 1/self.duration/2).sum())
         intergral_mask = (self.get_intergral() <self.min_intergral).squeeze() #将intergral小于0的点给去掉
-        print("intergral pure",intergral_mask.sum())
+        # print("intergral pure",intergral_mask.sum())
         # time_mask = torch.logical_or(self.get_trbfcenter < 0, self.get_trbfcenter > 1).squeeze()
         # prune_mask = torch.logical_or(prune_mask,time_mask )
         prune_mask = torch.logical_or(prune_mask, intergral_mask)
         if self.args.loader == "colmap":
             z_mask = (self.get_xyz[:,2] < 4.5).squeeze()
-            print("pure_z",z_mask.sum())
+            # print("pure_z",z_mask.sum())
             prune_mask = torch.logical_or(prune_mask, z_mask)#把这个移到外面去
 
         # small_t_center = (self.get_trbfcenter < 0).squeeze()
@@ -1809,15 +1815,15 @@ class GaussianModel:
             big_points_vs = self.max_radii2D > max_screen_size
             # spatial_scale = self.get_real_scale()  
             big_points_ws = self.get_scaling.max(dim=1).values > 0.1 * extent
-            print(extent)
+            # print(extent)
             # print(torch.nonzero(big_points_ws))
-            print("size_prune",big_points_vs.sum()+big_points_ws.sum())
+            # print("size_prune",big_points_vs.sum()+big_points_ws.sum())
             if self.args.pw:
                 prune_mask = torch.logical_or(torch.logical_or(prune_mask, big_points_vs), big_points_ws)
             else:
                 prune_mask = torch.logical_or(prune_mask,  big_points_vs)#只用vs
         self.prune_points(prune_mask)
-        print("after pure", self._xyz.shape[0])
+        # print("after pure", self._xyz.shape[0])
         # exit()
         if self.args.enable_scale_sum:
             self.init_real_scale()
@@ -2121,7 +2127,174 @@ class GaussianModel:
             self.itercount += 1
             self.scale_sum += scales.detach()
     # def get_scale_res(self):
+    def get_deformation_fast(self,timestamp,rays=None):
+        # print(timestamp)
+
+        # inv_intergral = 1/self.get_intergral()
+        # print(inv_intergral.mean(),inv_intergral.max(),inv_intergral.min())
+        ###充分结合hexplane和时间域上高斯的有点。将t_scale通过hexplane的特征学出来###
+        ####
+        # time = torch.full((self._motion.shape[0],1),timestamp).to("cuda")
+        # t_nan = self._trbf_center.isnan().sum()
+        # print(t_nan)
+        # temp_scale = torch.ones_like(self._trbf_center)
+        # spatial_scale = self.get_real_scale()
+        # print("realscale",spatial_scale)
+
+        # t_center = torch.sigmoid(self._trbf_center)
+
+        scales = torch.cat((self.get_scaling.detach(),self._trbf_scale.detach()/2),dim=1)
+        # print(scales.shape)
+        hexplane_feature = self.hexplane(self._xyz.detach(),self.get_trbfcenter.detach(),scales.detach()) #[N,D]
+        # print(hexplane_feature.shape)
+        # print(hexplane_feature)
+        trbf_scale = 1-self.opacity_mlp(hexplane_feature) #得到trbf_scale
+        min_scale = self.args.min_interval/(self.duration)
+        trbf_scale = (1-min_scale)*trbf_scale + min_scale #限制min_scale最小值
+        # print("t_scale",trbf_scale.mean(),trbf_scale.max(),trbf_scale.min())
+        self._trbf_scale = trbf_scale
+
+        # print("center",self.get_trbfcenter.min(),self.get_trbfcenter.max())
+        # print("scale",self.get_trbfscale.min(),self.get_trbfscale.max())
+        # intergral = self.get_intergral()
+        # print("intergral",intergral.mean(),intergral.max(),intergral.min())
+        # exit()
+        # print(min_scale)
+        # print(trbf_scale.mean(),trbf_scale.max(),trbf_scale.min())
+        trbfdistanceoffset = timestamp  - self.get_trbfcenter
+        trbfdistance =  trbfdistanceoffset / trbf_scale
+        trbfoutput = self.get_trbfoutput(trbfdistance)
+
+        time_embbed = self.time_emb(trbfdistanceoffset)
+        deform_feature = torch.cat((hexplane_feature,time_embbed.detach()),dim=1)
         
+        base_time_embbed = self.time_emb(torch.zeros_like(trbfdistanceoffset))
+        base_deform_feature = torch.cat((hexplane_feature,base_time_embbed.detach()),dim=1)
+        if self.args.scale_reg:
+            self.scale_residual = self.rot_mlp(base_deform_feature)[:,4:]
+        if self.args.shs_reg:
+            self.shs_residual = self.shs_mlp(base_deform_feature).reshape(-1,16,3)
+        if self.args.motion_reg:
+            self.motion_residual = self.motion_mlp(base_deform_feature)
+
+        with torch.no_grad():
+            self.real_xyz = self._xyz + self.motion_mlp(base_deform_feature)
+
+        if self.args.onemlp:
+            motion_residual  = self.motion_mlp(deform_feature)
+            motion = self._xyz + motion_residual[:,:3]
+            rot = self._rotation + motion_residual[:,3:7]
+            rot = self.rotation_activation(rot)
+
+            scale = self._scaling + motion_residual[:,7:]
+            scale = self.scaling_activation(scale)
+        else:
+            if self.args.dx:
+                # print(deform_feature.shape)
+                # print(deform_feature)
+                motion_residual = self.motion_mlp(deform_feature)
+                # *(1-trbfoutput.detach())
+                # print(motion_residual,motion_residual.max())
+                # print(motion_residual[select_mask.squeeze()])
+                # print(deform_feature[select_mask.squeeze()])
+                # if timestamp<0.01:
+                # print(deform_feature)
+                # print(self.motion_mlp.state_dict())
+                # print(timestamp)
+                # print((motion_residual>0).sum())
+                # print(motion_residual)
+                # print(motion_residual[select_mask.squeeze()])
+                # print(deform_feature[select_mask.squeeze()])
+                motion = self._xyz + motion_residual
+                # print(motion.max(),motion.min())
+                # motion = self._xyz 
+
+            else:
+                motion = self._xyz
+            
+            if self.args.drot:
+                rot_residual = self.rot_mlp(deform_feature)
+                # *(1-trbfoutput.detach())
+                # print("rs",rot_residual)
+                # print(self._rotation,self._scaling)
+                # scale_res =  rot_residual[:,4:]
+                base_scale = self.get_scaling.detach()
+                # print((scale-base_scale).mean())
+                rot = self._rotation + rot_residual[:,:4]
+                # scale = self._scaling + rot_residual[:,4:]
+
+                rot = self.rotation_activation(rot)
+
+                if self.args.scale_rot:
+                    scale_res =  rot_residual[:,4:]
+                    scale = self._scaling + rot_residual[:,4:]
+                    scale = self.scaling_activation(scale)
+                # scale = self.scaling_activation(scale)
+                # self.count_real_scale(scale)
+                # print("base",base_scale[self._xyz[:,2]>100].mean().detach())
+                # print("now",scale[self._xyz[:,2]>100].mean().detach())
+                # print("real",self.get_real_scale()[self._xyz[:,2]>100].mean().detach())
+                # print("base",base_scale[1].detach(),base_scale[3].detach(),base_scale[8].detach(),base_scale[446733].detach(),base_scale[446799].detach(),base_scale[446888].detach())
+                # print("now",scale[1].detach(),scale[3].detach(),scale[8].detach(),scale[446733].detach(),scale[446799].detach(),scale[446888].detach())
+                # print("real",self.get_real_scale()[1].detach(),self.get_real_scale()[3].detach(),self.get_real_scale()[8].detach(),self.get_real_scale()[446733].detach(),self.get_real_scale()[446799].detach(),self.get_real_scale()[446888].detach())
+                # print("scale_res",(scale.detach()-base_scale).mean(dim=0)) #x,z上 scale会增大，并且幅度更大，y上scale会减小。
+
+            else:
+                rot = self.get_rotation
+                if self.args.scale_rot:
+                    scale = self.get_scaling
+            #若为scale_rot,则scale归上面的管。否则scale归下面的管
+            if not self.args.scale_rot:
+                if self.args.dscale:
+                    scale_res = self.scale_mlp(deform_feature)
+                    scale = self._scaling + scale_res
+                    scale = self.scaling_activation(scale)
+                else:
+                    scale = self.get_scaling
+
+        if self.args.dopacity:
+            # print(self.opacity_mlp.state_dict())
+            # opacity_residual = self.opacity_mlp(deform_feature) #这个的bias要初始化为1
+            # opacity_residual = trbfoutput
+            # print("opacity_residual",opacity_residual)
+            opacity = self._opacity
+            # print(self.opacity_activation(opacity).mean(),self.opacity_activation(opacity).max(),self.opacity_activation(opacity).min(),self.opacity_activation(opacity).median())
+            # print(trbfoutput.mean(),trbfoutput.max(),trbfoutput.min(),trbfoutput.median())
+            # print(self.opacity_activation(opacity).mean(),self.opacity_activation(opacity).max(),self.opacity_activation(opacity).min(),self.opacity_activation(opacity).median())
+            opacity = self.opacity_activation(opacity)*trbfoutput
+            # opacity = torch.clamp(opacity,1e-3,1)
+            # print(opacity.max(),opacity.min())
+            # *valid_tensor
+            # opacity[~valid_mask] = 0.0
+            # *trbfoutput
+            # *trbfoutput
+            # print(trbfoutput[select_mask.squeeze()])
+            # print(opacity[select_mask.squeeze()])
+            # print(opacity_residual,opacity_residual.mean(),opacity_residual.max(),opacity_residual.min())
+            # print(self.get_trbfscale)
+            # opacity = opacity* opacity_residual
+        else:
+            opacity = self.get_opacity
+
+        if not self.args.rgbdecoder:
+            if self.args.dsh:
+                shs_residual = self.shs_mlp(deform_feature).reshape(-1,16,3)
+                # print(shs_residual)
+                features_dc =  self._features_dc 
+                features_rest = self._features_rest
+                shs = torch.cat((features_dc, features_rest), dim=1) + shs_residual
+            else:
+                features_dc = self._features_dc
+                features_rest = self._features_rest
+                shs =  torch.cat((features_dc, features_rest), dim=1)
+            # print(self.hexplane.aabb)
+
+        if self.args.rgbdecoder:
+            rgb_feature = self.shs_mlp(deform_feature)+self._features_dc
+            shs=None
+        else:
+            rgb_feature = None
+        return motion, rot,scale,opacity,shs,rgb_feature
     def get_deformation(self,timestamp,rays=None):
         # print(timestamp)
 
@@ -2470,6 +2643,95 @@ class GaussianModel:
     def normalize_residual(self,norm_xyz):
         '''0-1 -> -(max_bounds - min_bounds) - (max_bounds - min_bounds)'''
         return (2*norm_xyz-1) * (self.bounds[0] - self.bounds[1])
+    def get_deformfeature(self):
+        scales = torch.cat((self.get_scaling.detach(),self._trbf_scale.detach()/2),dim=1)
+        self.hexplane_feature = self.hexplane(self._xyz.detach(),self.get_trbfcenter.detach(),scales.detach()) #[N,D]
+        
+    def get_deformation_eval(self,timestamp,rays=None):
+
+
+
+        trbfdistanceoffset = timestamp  - self.get_trbfcenter
+        trbfdistance =  trbfdistanceoffset / self._trbf_scale
+        trbfoutput = self.get_trbfoutput(trbfdistance)
+
+        time_embbed = self.time_emb(trbfdistanceoffset)
+        deform_feature = torch.cat((self.hexplane_feature,time_embbed.detach()),dim=1)
+        
+        select_mask = trbfoutput>0.001
+        # print(select_mask.sum())
+        # print(self._xyz.shape)
+        deform_feature = deform_feature[select_mask.squeeze()]
+        trbfoutput = trbfoutput[select_mask.squeeze()]
+        if self.args.onemlp:
+            motion_residual  = self.motion_mlp(deform_feature)
+            motion = self._xyz + motion_residual[:,:3]
+            rot = self._rotation + motion_residual[:,3:7]
+            rot = self.rotation_activation(rot)
+
+            scale = self._scaling + motion_residual[:,7:]
+            scale = self.scaling_activation(scale)
+        else:
+            if self.args.dx:
+
+                motion_residual = self.motion_mlp(deform_feature)
+
+                motion = self._xyz[select_mask.squeeze()] + motion_residual
+
+
+            else:
+                motion = self._xyz
+            
+            if self.args.drot:
+                rot_residual = self.rot_mlp(deform_feature)
+                rot = self._rotation[select_mask.squeeze()] + rot_residual[:,:4]
+
+                rot = self.rotation_activation(rot)
+
+                if self.args.scale_rot:
+                    scale_res =  rot_residual[:,4:]
+                    scale = self._scaling[select_mask.squeeze()] + rot_residual[:,4:]
+                    scale = self.scaling_activation(scale)
+            else:
+                rot = self.get_rotation
+                if self.args.scale_rot:
+                    scale = self.get_scaling
+            #若为scale_rot,则scale归上面的管。否则scale归下面的管
+            if not self.args.scale_rot:
+                if self.args.dscale:
+                    scale_res = self.scale_mlp(deform_feature)
+                    scale = self._scaling + scale_res
+                    scale = self.scaling_activation(scale)
+                else:
+                    scale = self.get_scaling
+
+        if self.args.dopacity:
+
+            opacity = self._opacity[select_mask.squeeze()]
+            opacity = self.opacity_activation(opacity)*trbfoutput
+
+        else:
+            opacity = self.get_opacity
+
+        if not self.args.rgbdecoder:
+            if self.args.dsh:
+                shs_residual = self.shs_mlp(deform_feature).reshape(-1,16,3)
+                # print(shs_residual)
+                features_dc =  self._features_dc[select_mask.squeeze()] 
+                features_rest = self._features_rest[select_mask.squeeze()]
+                shs = torch.cat((features_dc, features_rest), dim=1) + shs_residual
+            else:
+                features_dc = self._features_dc
+                features_rest = self._features_rest
+                shs =  torch.cat((features_dc, features_rest), dim=1)
+            # print(self.hexplane.aabb)
+
+        if self.args.rgbdecoder:
+            rgb_feature = self.shs_mlp(deform_feature)+self._features_dc
+            shs=None
+        else:
+            rgb_feature = None
+        return motion, rot,scale,opacity,shs,rgb_feature
 def get_embedder(multires, i=1):
     if i == -1:
         return nn.Identity(), 3

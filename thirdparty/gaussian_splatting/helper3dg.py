@@ -57,6 +57,7 @@ def getparser():
     parser.add_argument("--dataset",type=str,default=None)#表示是哪个dataset
     parser.add_argument("--checkpoint",type=str,default=None)
     parser.add_argument("--no_wandb", action="store_true")
+    parser.add_argument("--no_report",action="store_true")
 
     args = parser.parse_args(sys.argv[1:])
 
@@ -78,6 +79,7 @@ def getparser():
         raise ValueError("config file not exist or not provided")
 
     if args.model_path == "":
+        # print(args.dataset,args.exp_name)
         args.model_path = os.path.join("log",os.path.join(args.dataset, args.exp_name ))
     print("Optimizing " + args.model_path)
     

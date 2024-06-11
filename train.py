@@ -50,7 +50,7 @@ from argparse import Namespace
 from thirdparty.gaussian_splatting.helper3dg import getparser, getrenderparts
 
 
-def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,checkpoint = None ,densify=0, duration=50,wandb_run = None, rgbfunction="rgbv1", rdpip="v2"):
+def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,checkpoint = None ,densify=0, duration=50,wandb_run = None, rgbfunction="rgbv1", rdpip="v2",no_report=False):
     with open(os.path.join(args.model_path, "cfg_args"), 'w') as cfg_log_f:
         cfg_log_f.write(str(Namespace(**vars(args))))
 
@@ -121,6 +121,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
     depthdict = {}
 
     if opt.batch > 1 and opt.multiview:
+    # if 1:
         #针对多目数据集，记录同一时刻的相机列表
         print("kk")
         traincameralist = scene.getTrainCamInfos().copy() if dataset.use_loader else scene.getTrainCameras().copy()
@@ -133,41 +134,43 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
 
         # traincamerainfolist = scene.getTrainCamInfos().copy()
         traincamdict = {}
-        for i in range(duration): # 0 to 4, -> (0.0, to 0.8)
-            if dataset.use_loader:
-                if opt.sametime_batch or opt.keyindex_batch:
-                    #每次采样出相同时间的数据
-                    traincamdict[i] = [idx for idx,cam in enumerate(traincameralist) if cam.timestamp == i/duration] #如果是用loader，就记录下标
+        traincam_dataset = scene.getTrainCameras()
+        # for i in range(duration): # 0 to 4, -> (0.0, to 0.8)
 
-                else:
-                    #random
-                    traincam_dataset = scene.getTrainCameras()
+            # if dataset.use_loader:
+            #     if opt.sametime_batch or opt.keyindex_batch:
+            #         #每次采样出相同时间的数据
+            #         traincamdict[i] = [idx for idx,cam in enumerate(traincameralist) if cam.timestamp == i/duration] #如果是用loader，就记录下标
 
-            else:
+            #     else:
+            #         #random
+            #         traincam_dataset = scene.getTrainCameras()
+
+            # else:
                 
-                traincamdict[i] = [cam for cam in traincameralist if cam.timestamp == i/duration]
-        if dataset.use_loader:
-            if opt.keyindex_batch:
-                # idx_dataset = IdxDataset(traincamdict)
-                time_dataset = TimeBatchDataset(traincamdict,gaussians.key_frame_dict,1,scene)
-                loader = DataLoader(time_dataset,batch_size=2,num_workers=2,shuffle=True,collate_fn=list)
-                # for data in loader:
-                #     print(data)
-                #     time.sleep(2)
-                #     print("wake up")
-            elif opt.sametime_batch:
-                print("samttime batchs")
-                #每次采样出相同时间的数据
-                idx_dataset = IdxDataset(traincamdict)
-                loader = SameTimeDataLoader(idx_dataset,opt.batch,scene)
-                test_loader = DataLoader(scene.getTestCameras(), batch_size=1,shuffle=False,num_workers=32,collate_fn=lambda x: x)
-                # while True:
-                #     for data in loader:
-                #         print(data)
+            #     traincamdict[i] = [cam for cam in traincameralist if cam.timestamp == i/duration]
+        # if dataset.use_loader:
+        #     if opt.keyindex_batch:
+        #         # idx_dataset = IdxDataset(traincamdict)
+        #         time_dataset = TimeBatchDataset(traincamdict,gaussians.key_frame_dict,1,scene)
+        #         loader = DataLoader(time_dataset,batch_size=2,num_workers=2,shuffle=True,collate_fn=list)
+        #         # for data in loader:
+        #         #     print(data)
+        #         #     time.sleep(2)
+        #         #     print("wake up")
+        #     elif opt.sametime_batch:
+        #         print("samttime batchs")
+        #         #每次采样出相同时间的数据
+        #         idx_dataset = IdxDataset(traincamdict)
+        #         loader = SameTimeDataLoader(idx_dataset,opt.batch,scene)
+        #         test_loader = DataLoader(scene.getTestCameras(), batch_size=1,shuffle=False,num_workers=32,collate_fn=lambda x: x)
+        #         # while True:
+        #         #     for data in loader:
+        #         #         print(data)
 
-            else:
-                loader = DataLoader(traincam_dataset, batch_size=opt.batch,shuffle=True,num_workers=8,collate_fn=list)
-                test_loader = DataLoader(scene.getTestCameras(), batch_size=1,shuffle=False,num_workers=16,collate_fn=lambda x: x)
+        #     else:
+        loader = DataLoader(traincam_dataset, batch_size=opt.batch,shuffle=True,num_workers=8,collate_fn=list)
+        test_loader = DataLoader(scene.getTestCameras(), batch_size=1,shuffle=False,num_workers=16,collate_fn=lambda x: x)
                 # while True:
                 #     for data in loader:
                 #         print(data)
@@ -264,6 +267,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                     gaussians.static2dynamatic()
             else:
                 stage = "static" 
+                # camindex = [scene.getTestCameras()[0]]
             if iteration ==  opt.emsstart:
                 flagems = 1 # start ems . 并且这个ems是只进行一次的
 
@@ -333,6 +337,7 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 batch_point_grad = []
                 batch_visibility_filter = []
                 batch_radii = []
+                # gaussians.set_batch_deformfeature()
                 for viewpoint_cam in camindex:
                     render_pkg = render(viewpoint_cam, gaussians, pipe, background,stage=stage)
                     image, viewspace_point_tensor, visibility_filter, radii = getrenderparts(render_pkg) 
@@ -543,20 +548,21 @@ def train(dataset, opt, pipe, saving_iterations,testing_iterations, debug_from,c
                 #     print("t_center_grad",t_center_grad_means)
                 #     valid_mask =None
                 # wandb report
-                test_psnr,history_data = training_report(wandb_run,test_loader,iteration, scene.model_path,train_camname_dict, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, 
-                ( pipe, background) , loss_dict=loss_dict,history_data=history_data,stage=stage )
-                if (iteration in testing_iterations ):
-                    if test_psnr >= best_psnr:
-                        best_psnr = test_psnr
-                        print("\n[ITER {}] Saving best checkpoint".format(iteration))
-                        save_path = os.path.join(scene.model_path + "/point_cloud/chkpnt_best.pth")
-                        mkdir_p(os.path.dirname(save_path))
-                        torch.save((gaussians.capture(), iteration), save_path)
+                if not no_report:
+                    test_psnr,history_data = training_report(wandb_run,test_loader,iteration, scene.model_path,train_camname_dict, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, 
+                    ( pipe, background) , loss_dict=loss_dict,history_data=history_data,stage=stage )
+                    if (iteration in testing_iterations ):
+                        if test_psnr >= best_psnr:
+                            best_psnr = test_psnr
+                            print("\n[ITER {}] Saving best checkpoint".format(iteration))
+                            save_path = os.path.join(scene.model_path + "/point_cloud/chkpnt_best.pth")
+                            mkdir_p(os.path.dirname(save_path))
+                            torch.save((gaussians.capture(), iteration), save_path)
             
                 #save
-                if (iteration in saving_iterations or iteration%500==0):
-                    print("\n[ITER {}] Saving Gaussians".format(iteration))
-                    scene.save(iteration)
+                # if (iteration in saving_iterations or iteration%500==0):
+                #     print("\n[ITER {}] Saving Gaussians".format(iteration))
+                #     scene.save(iteration)
 
 
 
@@ -955,7 +961,7 @@ if __name__ == "__main__":
         tags = ['test']
         wandb_run = wandb.init(project=args.dataset, name=args.exp_name,config=args,save_code=True,resume=False,tags=tags) #resume为true并没有什么好处
     try:
-        train(lp_extract, op_extract, pp_extract, args.save_iterations,args.testing_iterations, args.debug_from, checkpoint=args.checkpoint,densify=args.densify, duration=args.duration, wandb_run=wandb_run,rgbfunction=args.rgbfunction, rdpip=args.rdpip)
+        train(lp_extract, op_extract, pp_extract, args.save_iterations,args.testing_iterations, args.debug_from, checkpoint=args.checkpoint,densify=args.densify, duration=args.duration, wandb_run=wandb_run,rgbfunction=args.rgbfunction, rdpip=args.rdpip,no_report=args.no_report)
     except Exception as e:
         print("Error during training: ", e)
         traceback.print_exc()

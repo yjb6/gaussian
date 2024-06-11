@@ -40,7 +40,7 @@
   },
   "multires":[1],
   "valloader": "blendervalid",
-  "use_loader":true,
+  "use_loader":false,
   "batch":4,
   "sametime_batch":false,
 
@@ -70,7 +70,7 @@
 
   "trbfc_lr":1e-6,
   "sigmoid_tcenter":false,
-  "planemodel":"hexplane",
+  "planemodel":"hexplane_mip",
 
   "use_intergral_afterdensify":false,
   "pw":false,
